@@ -9,7 +9,7 @@ corsl::cancellation_source global_cancel;
 struct simple_sum_function_object
 {
 	template<class T>
-	corsl::future<T> operator()(const T &a, const T &b) const
+	corsl::future<T> operator()(T a, T b) const
 	{
 		// Simulate hard work
 		co_await 1s;
@@ -42,7 +42,7 @@ public:
 			// Illustrate the use of lambda. This will also work with async methods
 			.send_telemetry_event = [](const telemetry_info &tm)
 			{
-				log(std::format("Client send telemetry event \"{}\"\n  type = {}\n  success = {}\n  occurred at {}\n"sv, tm.event,(int)tm.type, tm.success, tm.time));
+				log(std::format("Client sent telemetry event \"{}\"\n  type = {}\n  success = {}\n  occurred at {}\n"sv, tm.event,tm.type == telemetry_type::beginning ? "beginning"sv : "end"sv, tm.success, tm.time));
 			}
 			});
 
@@ -90,6 +90,8 @@ corsl::future<> start_server()
 		.address = L"localhost"s,
 		.port = 7776
 		});
+
+	log("Server is listening for clients.\n"sv);
 
 	while (!token.is_cancelled())
 	{
