@@ -15,6 +15,9 @@ namespace crpc
 {
 	namespace details
 	{
+		template<typename T>
+		inline constexpr bool dependent_false = false;
+
 		template<class T>
 		struct method;
 
@@ -268,7 +271,7 @@ namespace crpc
 					};
 				}
 				else
-					static_assert(belt::dependent_false<M>, "The number of method parameters is too big.");
+					static_assert(dependent_false<M>, "The number of method parameters is too big.");
 			}
 
 			corsl::future<payload_t> call(method_id name, payload_t data)
@@ -345,16 +348,17 @@ namespace crpc
 						using Member = std::decay_t<decltype(implementation.*M::pointer)>;
 						using FR = typename Member::result_type;
 						static_assert(valid_return<FR>, "Interface method return type must be a future or void");
-						using R = typename FR::result_type;
 						typename Member::stored_args_t tuple;
 						Reader{ data } >> tuple;
 						data.clear();
 
 						constexpr bool is_void = std::same_as<FR, void>;
-						constexpr bool is_future_void = std::same_as<R, void>;
 
 						if constexpr (!is_void)
 						{
+							using R = typename FR::result_type;
+							constexpr bool is_future_void = std::same_as<R, void>;
+
 							if constexpr (is_future_void)
 							{
 								co_await std::apply(implementation.*M::pointer, std::move(tuple));
