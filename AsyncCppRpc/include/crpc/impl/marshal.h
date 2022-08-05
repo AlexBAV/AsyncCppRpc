@@ -105,173 +105,243 @@ namespace crpc
 			{
 				using FR = M::result_type;
 				static_assert(valid_return<FR>, "Interface method return type must be a future or void");
-				using R = typename FR::result_type;
-				constexpr auto count = M::args_count;
 				constexpr bool is_void = std::same_as<FR, void>;
-				constexpr bool is_future_void = std::same_as<R, void>;
+				constexpr auto count = M::args_count;
 
-				if constexpr (count == 0)
+				if constexpr (is_void)
 				{
-					return [this, name]() -> FR
+					if constexpr (count == 0)
 					{
-						if constexpr (is_void)
+						return [this, name]() -> FR
+						{
 							void_call(name, {});
-						else if constexpr (is_future_void)
-							co_await call(name, {});
-						else
-							co_return unmarshal<R>(co_await call(name, {}));
-					};
-				}
-				else if constexpr (count == 1)
-				{
-					return[this, name]<typename P1>(P1 && p1) -> FR
+						};
+					}
+					else if constexpr (count == 1)
 					{
-						if constexpr (is_void)
+						return[this, name]<typename P1>(P1 && p1) -> FR
+						{
 							void_call(name, create_writer(std::forward<P1>(p1)).get());
-						else if constexpr (is_future_void)
-							co_await call(name, create_writer(std::forward<P1>(p1)).get());
-						else
-							co_return unmarshal<R>(co_await call(name, create_writer(std::forward<P1>(p1)).get()));
-					};
-				}
-				else if constexpr (count == 2)
-				{
-					return[this, name]<typename P1, typename P2>(P1 && p1, P2 && p2) -> FR
+						};
+					}
+					else if constexpr (count == 2)
 					{
-						if constexpr (is_void)
+						return[this, name]<typename P1, typename P2>(P1 && p1, P2 && p2) -> FR
+						{
 							void_call(name, create_writer(std::forward<P1>(p1), std::forward<P2>(p2)).get());
-						else if constexpr (is_future_void)
-							co_await call(name, create_writer(std::forward<P1>(p1), std::forward<P2>(p2)).get());
-						else
-							co_return unmarshal<R>(co_await call(name, create_writer(std::forward<P1>(p1), std::forward<P2>(p2)).get()));
-					};
-				}
-				else if constexpr (count == 3)
-				{
-					return[this, name]<typename P1, typename P2, typename P3>(P1 && p1, P2 && p2, P3 &&p3) -> FR
+						};
+					}
+					else if constexpr (count == 3)
 					{
-						if constexpr (is_void)
+						return[this, name]<typename P1, typename P2, typename P3>(P1 && p1, P2 && p2, P3 && p3) -> FR
+						{
 							void_call(name, create_writer(std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3)).get());
-						else if constexpr (is_future_void)
-							co_await call(name, create_writer(std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3)).get());
-						else
-							co_return unmarshal<R>(co_await call(name, create_writer(std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3)).get()));
-					};
-				}
-				else if constexpr (count == 4)
-				{
-					return[this, name]<typename P1, typename P2, typename P3, typename P4>(P1 && p1, P2 && p2, P3 && p3, P4 &&p4) -> FR
+						};
+					}
+					else if constexpr (count == 4)
 					{
-						if constexpr (is_void)
+						return[this, name]<typename P1, typename P2, typename P3, typename P4>(P1 && p1, P2 && p2, P3 && p3, P4 && p4) -> FR
+						{
 							void_call(name, create_writer(std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3), std::forward<P4>(p4)).get());
-						else if constexpr (is_future_void)
-							co_await call(name, create_writer(std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3), std::forward<P4>(p4)).get());
-						else
-							co_return unmarshal<R>(co_await call(name, create_writer(std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3),
-								std::forward<P4>(p4)).get()));
-					};
-				}
-				else if constexpr (count == 5)
-				{
-					return[this, name]<typename P1, typename P2, typename P3, typename P4, typename P5>(P1 && p1, P2 && p2, P3 && p3, P4 &&p4, P5 && p5) -> FR
+						};
+					}
+					else if constexpr (count == 5)
 					{
-						if constexpr (is_void)
+						return[this, name]<typename P1, typename P2, typename P3, typename P4, typename P5>(P1 && p1, P2 && p2, P3 && p3, P4 && p4, P5 && p5) -> FR
+						{
 							void_call(name, create_writer(std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3), std::forward<P4>(p4),
 								std::forward<P5>(p5)).get());
-						else if constexpr (is_future_void)
-							co_await call(name, create_writer(std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3), std::forward<P4>(p4),
-								std::forward<P5>(p5)).get());
-						else
-							co_return unmarshal<R>(co_await call(name, create_writer(std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3),
-								std::forward<P4>(p4), std::forward<P5>(p5)).get()));
-					};
-				}
-				else if constexpr (count == 6)
-				{
-					return[this, name]<typename P1, typename P2, typename P3, typename P4, typename P5, typename P6>(P1 && p1, P2 && p2, P3 && p3, P4 && p4,
-						P5 && p5, P6 && p6) -> FR
+						};
+					}
+					else if constexpr (count == 6)
 					{
-						if constexpr (is_void)
+						return[this, name]<typename P1, typename P2, typename P3, typename P4, typename P5, typename P6>(P1 && p1, P2 && p2, P3 && p3, P4 && p4,
+							P5 && p5, P6 && p6) -> FR
+						{
 							void_call(name, create_writer(std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3), std::forward<P4>(p4),
 								std::forward<P5>(p5), std::forward<P6>(p6)).get());
-						else if constexpr (is_future_void)
-							co_await call(name, create_writer(std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3), std::forward<P4>(p4),
-								std::forward<P5>(p5), std::forward<P6>(p6)).get());
-						else
-							co_return unmarshal<R>(co_await call(name, create_writer(std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3),
-								std::forward<P4>(p4), std::forward<P5>(p5), std::forward<P6>(p6)).get()));
-					};
-				}
-				else if constexpr (count == 7)
-				{
-					return[this, name]<typename P1, typename P2, typename P3, typename P4, typename P5, typename P6, typename P7>(P1 && p1, P2 && p2, P3 && p3,
-						P4 &&p4, P5 && p5, P6 && p6, P7 && p7) -> FR
+						};
+					}
+					else if constexpr (count == 7)
 					{
-						if constexpr (is_void)
+						return[this, name]<typename P1, typename P2, typename P3, typename P4, typename P5, typename P6, typename P7>(P1 && p1, P2 && p2, P3 && p3,
+							P4 && p4, P5 && p5, P6 && p6, P7 && p7) -> FR
+						{
 							void_call(name, create_writer(std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3), std::forward<P4>(p4),
 								std::forward<P5>(p5), std::forward<P6>(p6), std::forward<P7>(p7)).get());
-						else if constexpr (is_future_void)
-							co_await call(name, create_writer(std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3), std::forward<P4>(p4),
-								std::forward<P5>(p5), std::forward<P6>(p6), std::forward<P7>(p7)).get());
-						else
-							co_return unmarshal<R>(co_await call(name, create_writer(std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3),
-								std::forward<P4>(p4), std::forward<P5>(p5), std::forward<P6>(p6), std::forward<P7>(p7)).get()));
-					};
-				}
-				else if constexpr (count == 8)
-				{
-					return[this, name]<typename P1, typename P2, typename P3, typename P4, typename P5, typename P6, typename P7, typename P8>(P1 && p1,
-						P2 && p2, P3 && p3, P4 &&p4, P5 && p5, P6 && p6, P7 && p7, P8 && p8) -> FR
+						};
+					}
+					else if constexpr (count == 8)
 					{
-						if constexpr (is_void)
+						return[this, name]<typename P1, typename P2, typename P3, typename P4, typename P5, typename P6, typename P7, typename P8>(P1 && p1,
+							P2 && p2, P3 && p3, P4 && p4, P5 && p5, P6 && p6, P7 && p7, P8 && p8) -> FR
+						{
 							void_call(name, create_writer(std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3), std::forward<P4>(p4),
 								std::forward<P5>(p5), std::forward<P6>(p6), std::forward<P7>(p7), std::forward<P8>(p8)).get());
-						else if constexpr (is_future_void)
-							co_await call(name, create_writer(std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3), std::forward<P4>(p4),
-								std::forward<P5>(p5), std::forward<P6>(p6), std::forward<P7>(p7), std::forward<P8>(p8)).get());
-						else
-							co_return unmarshal<R>(co_await call(name, create_writer(std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3),
-								std::forward<P4>(p4), std::forward<P5>(p5), std::forward<P6>(p6), std::forward<P7>(p7), std::forward<P8>(p8)).get()));
-					};
-				}
-				else if constexpr (count == 9)
-				{
-					return[this, name]<typename P1, typename P2, typename P3, typename P4, typename P5, typename P6, typename P7, typename P8, typename P9>
-						(P1 && p1, P2 && p2, P3 && p3, P4 &&p4, P5 && p5, P6 && p6, P7 && p7, P8 && p8, P9 && p9) -> FR
+						};
+					}
+					else if constexpr (count == 9)
 					{
-						if constexpr (is_void)
+						return[this, name]<typename P1, typename P2, typename P3, typename P4, typename P5, typename P6, typename P7, typename P8, typename P9>
+							(P1 && p1, P2 && p2, P3 && p3, P4 && p4, P5 && p5, P6 && p6, P7 && p7, P8 && p8, P9 && p9) -> FR
+						{
 							void_call(name, create_writer(std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3), std::forward<P4>(p4),
 								std::forward<P5>(p5), std::forward<P6>(p6), std::forward<P7>(p7), std::forward<P8>(p8), std::forward<P9>(p9)).get());
-						else if constexpr (is_future_void)
-							co_await call(name, create_writer(std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3), std::forward<P4>(p4),
-								std::forward<P5>(p5), std::forward<P6>(p6), std::forward<P7>(p7), std::forward<P8>(p8), std::forward<P9>(p9)).get());
-						else
-							co_return unmarshal<R>(co_await call(name, create_writer(std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3),
-								std::forward<P4>(p4), std::forward<P5>(p5), std::forward<P6>(p6), std::forward<P7>(p7), std::forward<P8>(p8), std::forward<P9>(p9)).get()));
-					};
-				}
-				else if constexpr (count == 10)
-				{
-					return[this, name]<typename P1, typename P2, typename P3, typename P4, typename P5, typename P6, typename P7, typename P8, typename P9,
-						typename P10>
-						(P1 && p1, P2 && p2, P3 && p3, P4 && p4, P5 && p5, P6 && p6, P7 && p7, P8 && p8, P9 && p9, P10 && p10) -> FR
+						};
+					}
+					else if constexpr (count == 10)
 					{
-						if constexpr (is_void)
+						return[this, name]<typename P1, typename P2, typename P3, typename P4, typename P5, typename P6, typename P7, typename P8, typename P9,
+							typename P10>
+							(P1 && p1, P2 && p2, P3 && p3, P4 && p4, P5 && p5, P6 && p6, P7 && p7, P8 && p8, P9 && p9, P10 && p10) -> FR
+						{
 							void_call(name, create_writer(std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3), std::forward<P4>(p4),
 								std::forward<P5>(p5), std::forward<P6>(p6), std::forward<P7>(p7), std::forward<P8>(p8), std::forward<P9>(p9),
 								std::forward<P10>(p10)).get());
-						else if constexpr (is_future_void)
-							co_await call(name, create_writer(std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3), std::forward<P4>(p4),
-								std::forward<P5>(p5), std::forward<P6>(p6), std::forward<P7>(p7), std::forward<P8>(p8), std::forward<P9>(p9),
-								std::forward<P10>(p10)).get());
-						else
-							co_return unmarshal<R>(co_await call(name, create_writer(std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3),
-								std::forward<P4>(p4), std::forward<P5>(p5), std::forward<P6>(p6), std::forward<P7>(p7), std::forward<P8>(p8), std::forward<P9>(p9),
-								std::forward<P10>(p10)).get()));
-					};
+						};
+					}
+					else
+						static_assert(dependent_false<M>, "The number of method parameters is too big.");
 				}
 				else
-					static_assert(dependent_false<M>, "The number of method parameters is too big.");
+				{
+					using R = typename FR::result_type;
+					constexpr bool is_future_void = std::same_as<R, void>;
+
+					if constexpr (count == 0)
+					{
+						return [this, name]() -> FR
+						{
+							if constexpr (is_future_void)
+								co_await call(name, {});
+							else
+								co_return unmarshal<R>(co_await call(name, {}));
+						};
+					}
+					else if constexpr (count == 1)
+					{
+						return[this, name]<typename P1>(P1 && p1) -> FR
+						{
+							if constexpr (is_future_void)
+								co_await call(name, create_writer(std::forward<P1>(p1)).get());
+							else
+								co_return unmarshal<R>(co_await call(name, create_writer(std::forward<P1>(p1)).get()));
+						};
+					}
+					else if constexpr (count == 2)
+					{
+						return[this, name]<typename P1, typename P2>(P1 && p1, P2 && p2) -> FR
+						{
+							if constexpr (is_future_void)
+								co_await call(name, create_writer(std::forward<P1>(p1), std::forward<P2>(p2)).get());
+							else
+								co_return unmarshal<R>(co_await call(name, create_writer(std::forward<P1>(p1), std::forward<P2>(p2)).get()));
+						};
+					}
+					else if constexpr (count == 3)
+					{
+						return[this, name]<typename P1, typename P2, typename P3>(P1 && p1, P2 && p2, P3 && p3) -> FR
+						{
+							if constexpr (is_future_void)
+								co_await call(name, create_writer(std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3)).get());
+							else
+								co_return unmarshal<R>(co_await call(name, create_writer(std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3)).get()));
+						};
+					}
+					else if constexpr (count == 4)
+					{
+						return[this, name]<typename P1, typename P2, typename P3, typename P4>(P1 && p1, P2 && p2, P3 && p3, P4 && p4) -> FR
+						{
+							if constexpr (is_future_void)
+								co_await call(name, create_writer(std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3), std::forward<P4>(p4)).get());
+							else
+								co_return unmarshal<R>(co_await call(name, create_writer(std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3),
+									std::forward<P4>(p4)).get()));
+						};
+					}
+					else if constexpr (count == 5)
+					{
+						return[this, name]<typename P1, typename P2, typename P3, typename P4, typename P5>(P1 && p1, P2 && p2, P3 && p3, P4 && p4, P5 && p5) -> FR
+						{
+							if constexpr (is_future_void)
+								co_await call(name, create_writer(std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3), std::forward<P4>(p4),
+									std::forward<P5>(p5)).get());
+							else
+								co_return unmarshal<R>(co_await call(name, create_writer(std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3),
+									std::forward<P4>(p4), std::forward<P5>(p5)).get()));
+						};
+					}
+					else if constexpr (count == 6)
+					{
+						return[this, name]<typename P1, typename P2, typename P3, typename P4, typename P5, typename P6>(P1 && p1, P2 && p2, P3 && p3, P4 && p4,
+							P5 && p5, P6 && p6) -> FR
+						{
+							if constexpr (is_future_void)
+								co_await call(name, create_writer(std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3), std::forward<P4>(p4),
+									std::forward<P5>(p5), std::forward<P6>(p6)).get());
+							else
+								co_return unmarshal<R>(co_await call(name, create_writer(std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3),
+									std::forward<P4>(p4), std::forward<P5>(p5), std::forward<P6>(p6)).get()));
+						};
+					}
+					else if constexpr (count == 7)
+					{
+						return[this, name]<typename P1, typename P2, typename P3, typename P4, typename P5, typename P6, typename P7>(P1 && p1, P2 && p2, P3 && p3,
+							P4 && p4, P5 && p5, P6 && p6, P7 && p7) -> FR
+						{
+							if constexpr (is_future_void)
+								co_await call(name, create_writer(std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3), std::forward<P4>(p4),
+									std::forward<P5>(p5), std::forward<P6>(p6), std::forward<P7>(p7)).get());
+							else
+								co_return unmarshal<R>(co_await call(name, create_writer(std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3),
+									std::forward<P4>(p4), std::forward<P5>(p5), std::forward<P6>(p6), std::forward<P7>(p7)).get()));
+						};
+					}
+					else if constexpr (count == 8)
+					{
+						return[this, name]<typename P1, typename P2, typename P3, typename P4, typename P5, typename P6, typename P7, typename P8>(P1 && p1,
+							P2 && p2, P3 && p3, P4 && p4, P5 && p5, P6 && p6, P7 && p7, P8 && p8) -> FR
+						{
+							if constexpr (is_future_void)
+								co_await call(name, create_writer(std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3), std::forward<P4>(p4),
+									std::forward<P5>(p5), std::forward<P6>(p6), std::forward<P7>(p7), std::forward<P8>(p8)).get());
+							else
+								co_return unmarshal<R>(co_await call(name, create_writer(std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3),
+									std::forward<P4>(p4), std::forward<P5>(p5), std::forward<P6>(p6), std::forward<P7>(p7), std::forward<P8>(p8)).get()));
+						};
+					}
+					else if constexpr (count == 9)
+					{
+						return[this, name]<typename P1, typename P2, typename P3, typename P4, typename P5, typename P6, typename P7, typename P8, typename P9>
+							(P1 && p1, P2 && p2, P3 && p3, P4 && p4, P5 && p5, P6 && p6, P7 && p7, P8 && p8, P9 && p9) -> FR
+						{
+							if constexpr (is_future_void)
+								co_await call(name, create_writer(std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3), std::forward<P4>(p4),
+									std::forward<P5>(p5), std::forward<P6>(p6), std::forward<P7>(p7), std::forward<P8>(p8), std::forward<P9>(p9)).get());
+							else
+								co_return unmarshal<R>(co_await call(name, create_writer(std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3),
+									std::forward<P4>(p4), std::forward<P5>(p5), std::forward<P6>(p6), std::forward<P7>(p7), std::forward<P8>(p8), std::forward<P9>(p9)).get()));
+						};
+					}
+					else if constexpr (count == 10)
+					{
+						return[this, name]<typename P1, typename P2, typename P3, typename P4, typename P5, typename P6, typename P7, typename P8, typename P9,
+							typename P10>
+							(P1 && p1, P2 && p2, P3 && p3, P4 && p4, P5 && p5, P6 && p6, P7 && p7, P8 && p8, P9 && p9, P10 && p10) -> FR
+						{
+							if constexpr (is_future_void)
+								co_await call(name, create_writer(std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3), std::forward<P4>(p4),
+									std::forward<P5>(p5), std::forward<P6>(p6), std::forward<P7>(p7), std::forward<P8>(p8), std::forward<P9>(p9),
+									std::forward<P10>(p10)).get());
+							else
+								co_return unmarshal<R>(co_await call(name, create_writer(std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3),
+									std::forward<P4>(p4), std::forward<P5>(p5), std::forward<P6>(p6), std::forward<P7>(p7), std::forward<P8>(p8), std::forward<P9>(p9),
+									std::forward<P10>(p10)).get()));
+						};
+					}
+					else
+						static_assert(dependent_false<M>, "The number of method parameters is too big.");
+				}
 			}
 
 			corsl::future<payload_t> call(method_id name, payload_t data)
