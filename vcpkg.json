@@ -1,0 +1,19 @@
+{
+  "name": "cs-signer",
+  "version-string": "1.0.0",
+  "dependencies": [
+    {
+      "name": "boost-mp11",
+      "version>=": "1.79.0"
+    },
+    {
+      "name": "boost-intrusive",
+      "version>=": "1.79.0"
+    },
+    {
+      "name": "boost-describe",
+      "version>=": "1.79.0"
+    }
+  ],
+  "builtin-baseline": "d769781d113bb1675fe4a1671f7f081f72afd722"
+}

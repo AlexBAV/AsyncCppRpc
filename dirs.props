@@ -3,7 +3,7 @@
   <ImportGroup Label="PropertySheets" />
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
-    <IncludePath>$(SolutionDir)\corsl\include;$(SolutionDir)\AsyncCppRpc\include;$(IncludePath)</IncludePath>
+    <IncludePath>$(SolutionDir)\corsl\include;$(SolutionDir)\AsyncCppRpc\include;$(SolutionDir);$(IncludePath)</IncludePath>
   </PropertyGroup>
   <PropertyGroup>
     <PreferredToolArchitecture>x64</PreferredToolArchitecture>
