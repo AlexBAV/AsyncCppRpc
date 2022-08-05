@@ -101,7 +101,6 @@ namespace crpc
 				return cancel;
 			}
 
-			// Read & Write
 			corsl::future<> write(message_t message)
 			{
 				if (!pipe)
@@ -169,13 +168,6 @@ namespace crpc
 			{
 				corsl::check_win32_api(RevertToSelf());
 			}
-
-			//CToken get_client_token(DWORD DesiredAccess, bool impersonate = false, bool openasself = false) const
-			//{
-			//	CToken result;
-			//	result.OpenNamedPipeClientToken(pipe.get(), DesiredAccess, impersonate, openasself);
-			//	return result;
-			//}
 		};
 	}
 

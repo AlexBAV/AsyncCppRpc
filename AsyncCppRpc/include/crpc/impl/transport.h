@@ -128,19 +128,7 @@ namespace crpc
 		public:
 			using T::T;
 		};
-
-		//{
-		//	// Configuration
-		//	virtual void set_cancellation_token(const corsl::cancellation_source &src) = 0;
-		//	virtual const corsl::cancellation_source &get_cancellation_source() const = 0;
-
-		//	// Server-side
-		//	virtual corsl::future<> create_server(std::any listener_config_params) = 0;
-		//	virtual corsl::future<std::shared_ptr<ITransport>> wait_client() = 0;
-		//};
 	}
-	//using details::ITransport;
-	//using details::ITransportListener;
 	using details::concepts::transport;
 	using details::dynamic_transport;
 	using details::dynamic_transport_impl;

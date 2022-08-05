@@ -107,7 +107,7 @@ namespace crpc::sockets::win8
 		class TcpSocketListener : public ITcpSocketListener
 		{
 			winrt::Windows::Networking::Sockets::StreamSocketListener listener;
-			corsl::async_queue<std::shared_ptr<ITcpSocket>> clients;
+			corsl::async_queue<std::unique_ptr<ITcpSocket>> clients;
 			winrt::event_token token;
 
 		public:
@@ -116,7 +116,7 @@ namespace crpc::sockets::win8
 				listener.Control().KeepAlive(true);
 				token = listener.ConnectionReceived([this](const auto &, const auto &args)
 					{
-						clients.push(std::make_shared<TcpSocket>(args.Socket()));
+						clients.push(std::make_unique<TcpSocket>(args.Socket()));
 					});
 			}
 
@@ -151,7 +151,7 @@ namespace crpc::sockets::win8
 				}
 			}
 
-			virtual corsl::future<std::shared_ptr<ITcpSocket>> listen(const corsl::cancellation_source &csource) override
+			virtual corsl::future<std::unique_ptr<ITcpSocket>> listen(const corsl::cancellation_source &csource) override
 			{
 				corsl::cancellation_token token_{ co_await csource };
 				corsl::cancellation_subscription sub{ token_,[&]

@@ -30,6 +30,6 @@ namespace crpc::sockets
 		virtual ~ITcpSocketListener() = default;
 		virtual corsl::future<void> bind(const std::wstring &host, int port) = 0;
 		virtual corsl::future<void> bind(int port) = 0;
-		virtual corsl::future<std::shared_ptr<ITcpSocket>> listen(const corsl::cancellation_source &csource) = 0;
+		virtual corsl::future<std::unique_ptr<ITcpSocket>> listen(const corsl::cancellation_source &csource) = 0;
 	};
 }

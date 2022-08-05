@@ -29,7 +29,7 @@ namespace crpc
 		class tcp_transport
 		{
 			corsl::cancellation_source cancel;
-			std::shared_ptr<sockets::ITcpSocket> socket;
+			std::unique_ptr<sockets::ITcpSocket> socket;
 			std::vector<uint8_t> receive_buffer;
 
 		public:
@@ -51,7 +51,6 @@ namespace crpc
 				receive_buffer.insert(receive_buffer.end(), data.begin(), data.end());
 			}
 
-			// Read and Write
 			corsl::future<message_t> read()
 			{
 				while (receive_buffer.size() < sizeof(tcp_message_header))
@@ -80,24 +79,24 @@ namespace crpc
 
 			corsl::future<> connect(const tcp_config &config)
 			{
-				socket = std::make_shared<sockets::win8::TcpSocket>();
+				socket = std::make_unique<sockets::win8::TcpSocket>();
 				co_await socket->connect(config.address, static_cast<int>(config.port));
 			}
 
 			tcp_transport() = default;
-			tcp_transport(std::shared_ptr<sockets::ITcpSocket> &&socket) noexcept :
+			tcp_transport(std::unique_ptr<sockets::ITcpSocket> &&socket) noexcept :
 				socket{ std::move(socket) }
 			{}
 		};
 
 		class tcp_listener
 		{
-			std::shared_ptr<sockets::ITcpSocketListener> listener;
+			std::unique_ptr<sockets::ITcpSocketListener> listener;
 
 		public:
 			corsl::future<> create_server(const tcp_config &config)
 			{
-				listener = std::make_shared<sockets::win8::TcpSocketListener>();
+				listener = std::make_unique<sockets::win8::TcpSocketListener>();
 				if (config.address.empty())
 					co_await listener->bind(static_cast<int>(config.port));
 				else
