@@ -1,0 +1,3 @@
+[submodule "corsl"]
+	path = corsl
+	url = https://github.com/AlexBAV/corsl.git
