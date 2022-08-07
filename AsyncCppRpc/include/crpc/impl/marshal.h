@@ -360,6 +360,7 @@ namespace crpc
 			template<class M>
 			using get_method_descriptor = std::decay_t<decltype(std::declval<Interface *>()->*M::pointer)>;
 			using methods = boost::describe::describe_members<Interface, boost::describe::mod_public>;
+			static_assert(mp11::mp_size<methods>::value >= 1, "Interface must contain at least one method");
 
 		public:
 			struct is_client_marshaller;
@@ -402,8 +403,9 @@ namespace crpc
 		{
 			static_assert(boost::describe::has_describe_members<Interface>::value, "Interface type must be described using BOOST_DESCRIBE_STRUCT");
 			using Methods = boost::describe::describe_members<Interface, boost::describe::mod_public>;
-			static constexpr const auto static_method_map{ build_method_map<Methods>() };
+			static_assert(mp11::mp_size<Methods>::value >= 1, "Interface must contain at least one method");
 
+			static constexpr const auto static_method_map{ build_method_map<Methods>() };
 			Interface implementation;
 
 			//
@@ -489,9 +491,14 @@ namespace crpc
 				implementation{ std::move(impl) }
 			{}
 
-			void set_implementation(Interface &&impl)
+			void set_implementation(Interface &&impl) noexcept
 			{
 				implementation = std::move(impl);
+			}
+
+			auto &get_implementation() noexcept
+			{
+				return implementation;
 			}
 		};
 	}

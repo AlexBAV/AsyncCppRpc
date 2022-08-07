@@ -221,6 +221,11 @@ namespace crpc
 				stop();
 			}
 
+			auto &get_transport() noexcept
+			{
+				return transport;
+			}
+
 			const corsl::cancellation_source& get_cancellation_token() const
 			{
 				return cancel;
