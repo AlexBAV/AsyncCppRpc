@@ -5,13 +5,13 @@ Light-weight asynchronous transport-agnostic header-only C++ RPC library.
 
 * No "duck typing": C++ compiler checks RPC method names and parameter types both on client and server side.
 * No macros! (Well, a single macro is still required).
-* Transport-agnostic: RPC logic is completely separated from the underlying transport. TODO: Both compile-time and run-time polymorphism are supported.
+* Transport-agnostic: RPC logic is completely separated from the underlying transport.
 * Full duplex connection: a client makes an asynchronous call to the server and receives an answer.
 * Connection parties may both act as server and client at the same time, that is, it is possible to make RPC calls in both directions.
-* Allows multiple requests to be issued on the connection at the same time, providing the server implementation is re-enterable.
+* Allows multiple requests to be issued on the connection at the same time.
 * Supports "request-response" asynchronous model and "fire-and-forget" notification model.
 * Supports extensible RPC interfaces: allows to add new RPC methods to existing interfaces without the need to recompile clients.
-* Propagates errors back to callers
+* Propagates errors back to callers.
 * Has built-in serialization and marshalling support for most native and STL types and provides a simple extensibility protocol for not-supported or custom types.
 
 ## Motivating Example
@@ -68,7 +68,8 @@ corsl::future<> start_server(Transport &&transport)
         {
             co_return a + b;
         },
-        .notify = [](const std::string &name, std::pair<int, bool> value1, std::variant<int, std::optional<param_info>> value2)
+        .notify = [](const std::string &name, std::pair<int, bool> value1, 
+            std::variant<int, std::optional<param_info>> value2)
         {
 
         }
@@ -76,11 +77,11 @@ corsl::future<> start_server(Transport &&transport)
 
     corsl::promise<> server_stopped;
 
-    connection.on_error([](HRESULT error_code)
+    connection.on_error([&](HRESULT error_code)
     {
         // A transport has generated an unrecoverable error (including client disconnection), 
         // stop server
-        server_stopped->set_async();
+        server_stopped.set_async();
     });
     connection.start(std::move(transport));
     co_await server_stopped.get_future();
@@ -100,9 +101,11 @@ A client implementation is even simpler:
 template<crpc::concepts::transport Transport>
 corsl::future<> client(Transport &&transport)
 {
-    crpc::connection<Transport, crpc::client_of<MyRpcInterface>> connection{std::move(transport)};
+    crpc::connection<Transport, crpc::client_of<MyRpcInterface>> 
+        connection{std::move(transport)};
 
-    co_await connection.set_server_name(co_await connection.get_server_name() + "-modified"s);
+    co_await connection.set_server_name(
+        co_await connection.get_server_name() + "-modified"s);
     assert(59 == co_await connection.add_numbers(42, 17));
     connection.notify("Test"s, std::pair{ 42, true }, 
         param_info { "description"s, "additional information"s });
@@ -118,9 +121,10 @@ This header-only library depends on the [Coroutine Support Library (corsl)](http
 ## TOC
 
 * [RPC Interface Declaration](#rpc-interface-declaration)
+* [RPC Connection Class](#rpc-connection-class)
 * [Serialization](#serialization)
 * [Transports](#transports)
-* [RPC Connection Class](#rpc-connection-class)
+* [Sample](#sample)
 
 ## RPC Interface Declaration
 
@@ -132,7 +136,7 @@ crpc::method<return_type(parameters)> method_name;
 
 Where `return_type` is either `void` for "fire-and-forget" methods or an awaitable type `corsl::future<T>` (`T` is any supported type, including `void`).
 
-`parameters` are RPC method's parameters. The library should be able to serialize them (more on that later). Any number from 0 to 10 are supported by the library.
+`parameters` are RPC method's parameters. The library should be able to serialize them (more on that later). Any number from 0 to 10 parameters are supported by the library.
 
 `method_name` is an RPC method name.
 
@@ -145,7 +149,7 @@ BOOST_DESCRIBE_STRUCT(MyRpcInterface, (), (method_name1, method_name2, ... , met
 The library checks the following invariants and generates a compilation error if they are not satisfied:
 
 1. `BOOST_DESCRIBE_STRUCT` has not been used on the interface.
-2. Interface contains no methods defined.
+2. Interface contains no methods.
 3. Method return type is not `void` or `corsl::future<T>`.
 4. One of the method parameter types cannot be serialized.
 
@@ -155,13 +159,128 @@ A server can extend published interfaces by adding new methods. It is also allow
 
 If server removes methods from the interface after it is published and client calls one of the removed methods, an error is returned to the client.
 
-Changing the types, the number or order of parameters in a published method will lead to undefined behavior.
+Changing the types, the number or order of parameters in a published method will lead to an undefined behavior.
+
+## RPC Connection Class
+
+The central class template `connection` is used on both sides of the RPC channel:
+
+```C++
+template<crpc::concepts::transport Transport, typename... Marshallers>
+class connection;
+```
+
+`Transport` is a transport implementation type, that must satisfy the [`transport` concept](#transports), described below.
+
+`Marshallers` is a list of one or two marshalling types. You get those marshalling types using the following two templates:
+
+```C++
+template<class RpcInterface>
+struct server_of;   // server-side marshaller for RpcInterface interface
+
+template<class RpcInterface>
+struct client_of;   // client-side marshaller for RpcInterface interface
+```
+
+A single connection instantiation can be a client, server, or both client and server side of a channel. In the latter case, you can use either the single RPC interface or two different RPC interfaces for asymmetric communication.
+
+### Starting Connection
+
+If connection has a server-side, you must set the interface implementation before starting a connection. In this case, connection only defines a default constructor. Call `set_implementation` method with implementations of each RPC method:
+
+```C++
+crpc::connection<transport_t, crpc::server_of<MyRpcInterface>> connection;
+
+connection.set_implementation({
+    .method1 = ...,
+    .method2 = ...,
+    ...
+});
+```
+
+A method implementation can be any callable object, like lambda, function object or an `std::bind_front` or `std::bind_back` expression.
+
+After that, call the `start` method, passing a *connected* transport object:
+
+```C++
+connection.start(std::move(transport));
+```
+
+The method returns immediately and puts the connection in a *running* state.
+
+If connection does not have a server side, you can either call a `start` method or provide a transport directly in connection constructor:
+
+```C++
+// First option:
+crpc::connection<transport_t, crpc::client_of<MyRpcInterface>> connection;
+connection.start(std::move(transport));
+
+// Second option:
+crpc::connection<transport_t, crpc::client_of<MyRpcInterface>> 
+    connection{ std::move(transport) };
+```
+
+### Client-side Connection Operation
+
+Call an RPC method directly on a client-side connection. 
+
+Methods that return `void` return immediately. Parameter serialization has already been completed by the time method returns and it is safe to destruct any referenced parameters. However, it is not recommended to stop or disconnect a connection immediately after calling a `void` method, because the library might need some time to complete the transfer operation (it depends on the transport implementation).
+
+Methods that return `corsl::future<T>` complete when the server receives and processes the request and after the request result is transferred back to the client.
+
+It is allowed to call multiple RPC methods at the same time either on different threads or on a single thread:
+
+```C++
+corsl::future<> foo(connection_t &connection)
+{
+    auto first_method = connection.first_method(...);
+    auto second_method = connection.second_method(...);
+    // do some other work while both requests are being processed
+    // ...
+    auto first_method_result = co_await first_method;
+    auto second_method_result = co_await second_method;
+}
+```
+
+Note that the server implementation must be capable of processing concurrent requests in this case.
+
+If RPC interface consists of "fire-and-forget" notification methods only, the library provides the following optimization:
+
+* No read requests are issued on a client-side of a connection, allowing the usage of an asymmetric communication channels.
+
+### Server-side Connection Operation
+
+There is nothing else a server needs to do besides calling the `set_implementation` and starting a connection. When server receives a request, a provided implementation is called.
+
+If method execution takes a long time, it should suspend early, for example, by executing the following:
+
+```C++
+co_await corsl::resume_background();
+```
+
+Failure to suspend early will prevent the server from receiving any subsequent requests. If server initiates an I/O request as part of method execution, it is OK to suspend on that I/O request.
+
+The library guarantees that each method parameter, even passed by a reference, will have a valid lifetime until the method completes.
+
+If implementation throws an error, it gets transported back to the caller and re-thrown on a client-side.
+
+Note: currently, only `corsl::hresult_error` exceptions are transported.
+
+### Stopping a connection
+
+You can call `stop` method to stop a connection. `stop` method is automatically called by the `connection` destructor.
+
+Make sure you correctly manage connection object lifetime.
+
+Connection is also automatically stopped when the transport reports a read error. By convention, transport also has to report a read error when the underlying channel is disconnected.
+
+You can get notified of this situation by providing a callback via the `on_error` connection method.
 
 ## Serialization
 
 In order to transfer a method call over the transport and execute it on the other side, a called method parameters must be serialized on the caller's side and de-serialized on the receiver's side. 
 
-The library has built-in serialization support of the following types.
+The library has built-in serialization support for the following types.
 
 * All standard integer and floating-point types as well as `bool`.
 * `std::basic_string<...>` and `std::basic_string_view<...>`.
@@ -170,6 +289,7 @@ The library has built-in serialization support of the following types.
 * `std::tuple<T...>`, where all `T`s are supported types.
 * `std::variant<T...>`, where all `T`s are supported types.
 * `std::optional<T>`, where `T` is a supported type.
+* Any trivially-copied type.
 * Any `std::ranges::range<T>`, where T is a supported type.
 * Any aggregate-initialize `struct` consisting of members of supported types.
 * Any type "described" using `Boost.Describe`.
@@ -212,16 +332,17 @@ class foo
 {
     int a;  // having a private member will prevent this type
             // from being automatically serializable
+    std::string b;
 
 public:
     void serialize_write(crpc::Writer &w) const
     {
-        w << a;
+        w << a << b;
     }
 
     void serialize_read(crpc::Reader &r)
     {
-        r >> a;
+        r >> a >> b;
     }
 };
 
@@ -258,7 +379,7 @@ namespace test
 Take the following additional notes regarding supported and unsupported serialization scenarios:
 
 * Const references are fully supported.
-* Pointers (including smart pointers) are NOT supported. This is a deliberate decision in order to avoid problems with situation when base pointer references an object of a derived class.
+* Pointers (including smart pointers) are NOT supported. This is a deliberate decision in order to avoid situations of base pointer referencing an object of a derived class.
 
 ## Transports
 
@@ -345,113 +466,20 @@ TODO
 
 TODO
 
-## RPC Connection Class
-
-The central class template `connection` is used on both sides of the RPC channel:
-
-```C++
-template<crpc::concepts::transport Transport, typename... Marshallers>
-class connection;
-```
-
-`Transport` is a transport implementation type, that must satisfy the [`transport` concept](#transports), described above.
-
-`Marshallers` is one or two marshalling types. You get those marshalling types using the following two templates:
-
-```C++
-template<class RpcInterface>
-struct server_of;   // server-side of RpcInterface interface
-
-template<class RpcInterface>
-struct client_of;   // client-side of RpcInterface interface
-```
-
-A single connection instantiation can be a client, server, or both client and server side of a channel. In the latter case, you can use either the single RPC interface or two different RPC interfaces for asymmetric communication.
-
-### Starting Connection
-
-If connection has a server-side, you must set the interface implementation before starting a connection. In this case, connection only defines a default constructor. Call `set_implementation` method with implementations of each RPC method:
-
-```C++
-crpc::connection<transport_t, crpc::server_of<MyRpcInterface>> connection;
-
-connection.set_implementation({
-    .method1 = ...,
-    .method2 = ...,
-    ...
-});
-```
-
-An implementation can be any callable object, like lambda, function object or an `std::bind_front` or `std::bind_back` expression.
-
-After that, call the `start` method, passing a *connected* transport object:
-
-```C++
-connection.start(std::move(transport));
-```
-
-The method returns immediately and puts the connection in a *running* state.
-
-If connection does not have a server side, you have two options:
-
-```C++
-// First option:
-crpc::connection<transport_t, crpc::client_of<MyRpcInterface>> connection;
-connection.start(std::move(transport));
-
-// Second option:
-crpc::connection<transport_t, crpc::client_of<MyRpcInterface>> 
-    connection{ std::move(transport) };
-```
-
-### Client-side Connection Operation
-
-Call an RPC method directly on a client-side connection. 
-
-Methods that return `void` return immediately. Parameter serialization has already been completed by that time and it is safe to destruct any referenced parameters. However, it is not recommended to stop or disconnect a connection immediately after calling a `void` method, because the library might need some time to complete the transfer operation (it depends on the transport implementation).
-
-Methods that return `corsl::future<T>` complete when the server receives and processes the request and after the request result is transferred back to the client.
-
-It is allowed to call multiple RPC methods at the same time either on different threads or on a single thread:
-
-```C++
-corsl::future<> foo(connection_t &connection)
-{
-    auto first_method = connection.first_method(...);
-    auto second_method = connection.second_method(...);
-    // do some other work while both requests are being processed
-    // ...
-    auto first_method_result = co_await first_method;
-    auto second_method_result = co_await second_method;
-}
-```
-
-Note that the server implementation must be capable of processing concurrent requests in this case.
-
-If RPC interface consists of "fire-and-forget" notifications methods only, the library provides the following optimization:
-
-* No read requests are issued on a client-side of a connection, allowing the usage of an asymmetric communication channels.
-
-### Server-side Connection Operation
-
-There is nothing else a server needs to do besides calling the `set_implementation` and starting a connection. When server receives a request, a provided implementation is called.
-
-If implementation throws an error, it gets transported back to the caller and re-thrown on a client-side.
-
-Note: currently, only `corsl::hresult_error` exceptions are transported.
-
-### Stopping a connection
-
-You can call `stop` method to stop a connection. `stop` method is automatically called by the `connection` destructor.
-
-Make sure you correctly manage connection object lifetime.
-
-Connection is also automatically stopped when the transport reports a read error. By convention, transport also has to report a read error when the underlying channel is disconnected.
-
-You can get notified of this situation by providing a callback via the `on_error` connection method.
-
 ## Request Cancellation
 
 Currently, the library lacks support for cancelling outstanding RPC requests from the client-side. However, if connection is broken, any outstanding requests are completed with an exception.
 
 Request cancellation support is planned in future versions.
+
+## Sample
+
+This repository includes a sample implementation of an RPC server and RPC client.
+
+Visual Studio 2022 17.2.6 or later is required to build this sample.
+
+Clone the repository, open the `AsyncCppRpc.sln` file in Visual Studio and build the solution. It will download all required dependencies through NuGet and vcpkg. Your vcpkg integration must be updated and integrated with Visual Studio for this to work.
+
+After build, launch `sample_rpc_server.exe`. It will create a TCP listener and will wait for client connections on `localhost:7776`.
+
+Then launch one or more instances of `sample_rpc_client.exe`. It will start a number of tests and you will see the results of those tests in both client and server console windows.
