@@ -155,6 +155,8 @@ A server can extend published interfaces by adding new methods. It is also allow
 
 If server removes methods from the interface after it is published and client calls one of the removed methods, an error is returned to the client.
 
+Changing the types, the number or order of parameters in a published method will lead to undefined behavior.
+
 ## Serialization
 
 In order to transfer a method call over the transport and execute it on the other side, a called method parameters must be serialized on the caller's side and de-serialized on the receiver's side. 
@@ -256,7 +258,7 @@ namespace test
 Take the following additional notes regarding supported and unsupported serialization scenarios:
 
 * Const references are fully supported.
-* Pointers, as well as smart pointers are NOT supported. This is a deliberate decision in order to avoid problems with situation when base pointer references an object of a derived class.
+* Pointers (including smart pointers) are NOT supported. This is a deliberate decision in order to avoid problems with situation when base pointer references an object of a derived class.
 
 ## Transports
 
@@ -283,10 +285,10 @@ That is, a transport must be default constructible and must implement the follow
 :   Returns the current cancellation source.
 
 `read`
-:   Initiate a read operation on the transport. This method must either produce a `message_t` object, or throw an exception on any I/O error, including disconnection. The latter is extremely important for correct operation.
+:   Initiate a read operation on the transport. This method must either produce a `message_t` object, or throw a `corsl::hresult_error` exception on any I/O error, including disconnection. The latter is extremely important for correct operation.
 
 `write`
-:   Send a given message over the transport. This method can be called by different threads concurrently. An implementation must ensure it does not interleave bytes from different messages on the stream.
+:   Send a given message over the transport. The library allows calling multiple RPC methods at the same time, but ensures a `write` transport method is called sequentially. However, for this to work correctly, a transport can only complete the `write` request when it is ready to accept another one in order to avoid interleaving bytes on the stream.
 
 ### Provided Transports
 
@@ -406,7 +408,7 @@ crpc::connection<transport_t, crpc::client_of<MyRpcInterface>>
 
 Call an RPC method directly on a client-side connection. 
 
-Methods that return `void` return immediately. Parameter serialization has already been completed by that time and it is safe to destruct any referenced parameter. However, it is not recommended to stop or disconnect a connection immediately after calling a `void` method, because the library might need some time to complete the transfer operation (it depends on the transport implementation).
+Methods that return `void` return immediately. Parameter serialization has already been completed by that time and it is safe to destruct any referenced parameters. However, it is not recommended to stop or disconnect a connection immediately after calling a `void` method, because the library might need some time to complete the transfer operation (it depends on the transport implementation).
 
 Methods that return `corsl::future<T>` complete when the server receives and processes the request and after the request result is transferred back to the client.
 
