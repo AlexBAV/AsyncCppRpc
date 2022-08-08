@@ -426,7 +426,6 @@ namespace crpc
 						static_assert(valid_return<FR>, "Interface method return type must be a future or void");
 						typename Member::stored_args_t tuple;
 						Reader{ data } >> tuple;
-						data.clear();
 
 						constexpr bool is_void = std::same_as<FR, void>;
 
@@ -442,6 +441,7 @@ namespace crpc
 							}
 							else
 							{
+								data.clear();
 								auto result = co_await std::apply(implementation.*M::pointer, std::move(tuple));
 								co_return create_writer_on(std::move(data), result).get();
 							}
@@ -470,7 +470,6 @@ namespace crpc
 						static_assert(valid_return<FR>, "Interface method return type must be a future or void");
 						typename Member::stored_args_t tuple;
 						Reader{ data } >> tuple;
-						data.clear();
 
 						constexpr bool is_void = std::same_as<FR, void>;
 
