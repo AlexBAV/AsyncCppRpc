@@ -246,7 +246,7 @@ Note that the server implementation must be capable of processing concurrent req
 
 If RPC interface consists of "fire-and-forget" notification methods only, the library provides the following optimizations:
 
-* No read requests are issued on a client-side of a connection.
+* No read requests are issued on a client side of a connection.
 * No write requests are issued on a server side of a connection.
 
 This allows the usage of an asymmetric communication channels.
