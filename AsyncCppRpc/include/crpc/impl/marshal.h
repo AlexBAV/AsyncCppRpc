@@ -468,13 +468,13 @@ namespace crpc
 						using Member = std::decay_t<decltype(implementation.*M::pointer)>;
 						using FR = typename Member::result_type;
 						static_assert(valid_return<FR>, "Interface method return type must be a future or void");
-						typename Member::stored_args_t tuple;
-						Reader{ data } >> tuple;
-
 						constexpr bool is_void = std::same_as<FR, void>;
 
 						if constexpr (is_void)
 						{
+							typename Member::stored_args_t tuple;
+							Reader{ data } >> tuple;
+
 							std::apply(implementation.*M::pointer, std::move(tuple));
 						}
 					});
