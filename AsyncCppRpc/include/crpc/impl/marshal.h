@@ -95,6 +95,9 @@ namespace crpc
 			return result;
 		}
 
+		template<class MD>
+		using is_void_method = std::bool_constant<std::same_as<void, typename MD::result_type>>;
+
 		template<class Derived, class Interface>
 		class marshal_client : public Interface
 		{
@@ -354,11 +357,9 @@ namespace crpc
 				return static_cast<Derived *>(this)->do_void_call(name, std::move(data));
 			}
 
-			template<class MD>
-			using is_void_method = std::bool_constant<std::same_as<void, typename MD::result_type>>;
-
 			template<class M>
 			using get_method_descriptor = std::decay_t<decltype(std::declval<Interface *>()->*M::pointer)>;
+
 			using methods = boost::describe::describe_members<Interface, boost::describe::mod_public>;
 			static_assert(mp11::mp_size<methods>::value >= 1, "Interface must contain at least one method");
 
@@ -407,6 +408,9 @@ namespace crpc
 
 			static constexpr const auto static_method_map{ build_method_map<Methods>() };
 			Interface implementation;
+
+			template<class M>
+			using get_method_descriptor = std::decay_t<decltype(std::declval<Interface *>()->*M::pointer)>;
 
 			//
 		protected:
@@ -484,7 +488,8 @@ namespace crpc
 
 		public:
 			struct is_server_marshaller;
-			static constexpr const bool only_void_methods = false;
+			static constexpr const bool only_void_methods = mp11::mp_all_of<
+				mp11::mp_transform<get_method_descriptor, Methods>, is_void_method>::value;
 
 			marshal_server() = default;
 			marshal_server(Interface &&impl) noexcept :

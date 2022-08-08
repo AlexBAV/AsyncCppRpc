@@ -59,8 +59,8 @@ namespace crpc
 				"Error: two or more server marshallers specified.");
 
 			static constexpr const auto has_server = servers_count != 0;
-
 			static constexpr const bool reader_not_required = !has_server && has_only_void_methods<mp11::mp_first<Marshallers>>();
+			static constexpr const bool writer_not_required = clients_count == 0 && has_only_void_methods<mp11::mp_first<Marshallers>>();
 
 			corsl::cancellation_source cancel;
 
@@ -91,24 +91,29 @@ namespace crpc
 
 			corsl::future<> writer()
 			{
-				corsl::cancellation_token token{ co_await cancel };
-				corsl::cancellation_subscription s{ token, [&]
-					{
-						write_queue.cancel();
-					} };
-
-				while (!token.is_cancelled())
+				if constexpr (writer_not_required)
+					co_return;
+				else
 				{
-					auto message = co_await write_queue.next();
-					try
+					corsl::cancellation_token token{ co_await cancel };
+					corsl::cancellation_subscription s{ token, [&]
+						{
+							write_queue.cancel();
+						} };
+
+					while (!token.is_cancelled())
 					{
-						co_await transport->write(std::move(message));
-					}
-					catch (const corsl::hresult_error &e)
-					{
-						cancel.cancel();
-						error_on_background(e.code());
-						break;
+						auto message = co_await write_queue.next();
+						try
+						{
+							co_await transport->write(std::move(message));
+						}
+						catch (const corsl::hresult_error &e)
+						{
+							cancel.cancel();
+							error_on_background(e.code());
+							break;
+						}
 					}
 				}
 			}
@@ -256,7 +261,7 @@ namespace crpc
 				{
 					cancel.cancel();
 					corsl::block_wait(corsl::when_all(std::move(writer_task), std::move(reader_task)));
-					transport = {};
+					transport.reset();
 					cancel = {};
 					std::scoped_lock l2{ completions_lock };
 					for (auto &p : completions)

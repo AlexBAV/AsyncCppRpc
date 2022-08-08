@@ -96,11 +96,6 @@ namespace crpc
 				cancel = src.create_connected_source();
 			}
 
-			const corsl::cancellation_source& get_cancellation_token() const
-			{
-				return cancel;
-			}
-
 			corsl::future<> write(message_t message)
 			{
 				if (!pipe)

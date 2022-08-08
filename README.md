@@ -411,6 +411,8 @@ That is, a transport must be default constructible and must implement the follow
 `write`
 :   Send a given message over the transport. The library allows calling multiple RPC methods at the same time, but ensures a `write` transport method is called sequentially. However, for this to work correctly, a transport can only complete the `write` request when it is ready to accept another one in order to avoid interleaving bytes on the stream.
 
+Transport implementation must guarantee correct message delivery. If required, message integrity and encryption should also be implemented by a transport. If a transport is unable to deliver a message, it should throw an exception, indicating a connection loss.
+
 ### Provided Transports
 
 Currently, the library comes with `tcp_transport`, `pipe_transport` and `copydata_transport` implementations. It also comes with a generic `dynamic_transport` type which allows a single connection object to be used with different transports at runtime.

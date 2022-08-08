@@ -45,10 +45,12 @@ namespace crpc
 		namespace concepts
 		{
 			template<class T>
-			concept transport = std::is_default_constructible_v<T> && requires(T & v, const T & cv, const corsl::cancellation_source & cancel, message_t message)
+			concept transport =
+				std::is_default_constructible_v<T> &&
+				std::is_move_constructible_v<T> &&
+				requires(T & v, const T & cv, const corsl::cancellation_source & cancel, message_t message)
 			{
 				{ v.set_cancellation_token(cancel) } -> std::same_as<void>;
-				{ cv.get_cancellation_token() } -> std::same_as<const corsl::cancellation_source &>;
 				{ v.read() } -> std::same_as<corsl::future<message_t>>;
 				{ v.write(message) } -> std::same_as<corsl::future<>>;
 			};
@@ -58,7 +60,6 @@ namespace crpc
 		{
 			virtual ~dynamic_transport_base() = default;
 			virtual void set_cancellation_token(const corsl::cancellation_source &src) = 0;
-			virtual const corsl::cancellation_source &get_cancellation_token() const = 0;
 			virtual corsl::future<message_t> read() = 0;	// propagates HRESULT exception on error
 			virtual corsl::future<> write(message_t message) = 0;	// propagates HRESULT exception on error
 		};
@@ -75,11 +76,6 @@ namespace crpc
 			void set_cancellation_token(const corsl::cancellation_source &src)
 			{
 				impl->set_cancellation_token(src);
-			}
-
-			const corsl::cancellation_source &get_cancellation_token() const
-			{
-				return impl->get_cancellation_token();
 			}
 
 			corsl::future<message_t> read()
@@ -109,11 +105,6 @@ namespace crpc
 			virtual void set_cancellation_token(const corsl::cancellation_source &src) override
 			{
 				getT()->set_cancellation_token(src);
-			}
-
-			virtual const corsl::cancellation_source &get_cancellation_token() const override
-			{
-				return getT()->get_cancellation_token();
 			}
 
 			virtual corsl::future<message_t> read() override
