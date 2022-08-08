@@ -136,7 +136,7 @@ crpc::method<return_type(parameters)> method_name;
 
 Where `return_type` is either `void` for "fire-and-forget" methods or an awaitable type `corsl::future<T>` (`T` is any supported type, including `void`).
 
-`parameters` are RPC method's parameters. The library should be able to serialize them (more on that later). Any number from 0 to 10 parameters are supported by the library.
+`parameters` is a list of RPC method's parameters. The library should be able to serialize them (more on that later). Any number from 0 to 10 parameters are supported by the library.
 
 `method_name` is an RPC method name.
 
@@ -387,23 +387,21 @@ In a nutshell, a transport is a type that satisfies the `crpc::concepts::transpo
 
 ```C++
 template<class T>
-concept transport = std::is_default_constructible_v<T> && 
+concept transport = 
+    std::is_default_constructible_v<T> && 
+    std::is_move_constructible_v<T> &&
     requires(T &v, const T &cv, const corsl::cancellation_source &cancel, message_t message)
 {
     { v.set_cancellation_token(cancel) } -> std::same_as<void>;
-    { cv.get_cancellation_token() } -> std::same_as<const corsl::cancellation_source &>;
     { v.read() } -> std::same_as<corsl::future<message_t>>;
     { v.write(message) } -> std::same_as<corsl::future<>>;
 };
 ```
 
-That is, a transport must be default constructible and must implement the following four methods:
+That is, a transport must be default constructible and must implement the following methods:
 
 `set_cancellation_token`
 :   Library calls this method to associate a cancellation source with a transport. The implementation must cancel all outstanding I/O requests when this source is cancelled.
-
-`get_cancellation_token`
-:   Returns the current cancellation source.
 
 `read`
 :   Initiate a read operation on the transport. This method must either produce a `message_t` object, or throw a `corsl::hresult_error` exception on any I/O error, including disconnection. The latter is extremely important for correct operation.
@@ -460,13 +458,82 @@ co_await transport.connect({ L"servername"s, 5000 });
 
 #### `pipe_transport` Transport
 
-This is a transport implementation over named pipes.
+This is a transport implementation over named pipes. Named pipes connect endpoints both on a single computer or on different computers on networks.
 
-TODO
+In order to create a named pipe server side of a transport, call the following method:
+
+```C++
+namespace crpc::transports::pipe
+{
+    template<class F = std::identity>
+    inline corsl::future<pipe_transport> create_server(
+        std::wstring_view pipe_name, const corsl::cancellation_source &cancel, 
+        const create_server_params<F> &params = {})
+}
+```
+
+Where `pipe_name` is a name of a pipe, `cancel` is a cancellation source and `params` is a set of optional pipe server parameters:
+
+```C++
+template<class F = std::identity>
+struct create_server_params
+{
+    const SECURITY_DESCRIPTOR *sd{};
+    uint32_t def_buffer_size{ 4096 * 4096 };
+    uint32_t out_buffer_size{ def_buffer_size };
+    uint32_t in_buffer_size{ def_buffer_size };
+    uint32_t default_timeout{};
+    F on_after_wait_pending{};
+    bool local_only{ false };
+};
+```
+
+This function creates a named pipe server and waits for the client connection. If set, `on_after_wait_pending` callback is called after the wait is started. This allows the user to signal an event, for example.
+
+When client connects, this function produces a connected transport object.
+
+In order to create a named pipe client transport, use the following method:
+
+```C++
+namespace crpc::transports::pipe
+{
+    inline pipe_transport create_client(
+        std::wstring_view server, std::wstring_view pipe_name, 
+        winrt::Windows::Foundation::TimeSpan timeout, unsigned retries);
+}
+```
+
+Where `server` is the name or address of a server, `pipe_name` is the name of the pipe on the server, `timeout` - is a `std::chrono`-compatible connection timeout value and `retries` is the number of connection attempts.
+
+The function returns a connected transport object or throws an exception if error occurs.
 
 #### `copydata_transport` Transport
 
-TODO
+This transport implementation is used to communicate with a window (by sending `WM_COPYDATA` messages to its window procedure). The target window may belong to the same or to another process. It supports both one-way and two-way communications.
+
+For one-way communication, only server has to have a window (and all RPC methods must be "fire-and-forget" void methods). Note that it can be a special "message-only" invisible window, which can be created by any process, even non-interactive one (like Windows Service). This kind of window is created by passing a special `HWND_MESSAGE` handle as a parent window.
+
+For two-way communications, both client and server need to have windows. Any kind of RPC method is supported in this mode.
+
+Create an instance of `crpc::transports::copydata::copydata_transport`, and initialize it either using the constructor, or by calling the `initialize` method:
+
+```C++
+copydata_transport(HWND other_party, HWND this_party = {}, bool sync_write = false);
+void initialize(HWND other_party, HWND this_party = {}, bool sync_write = false);
+```
+
+`other_party` is a window handle of a remote party and `this_party` is a window handle of a local party. This parameter is optional and if set, is validated in DEBUG builds. 
+
+It is recommended to set `sync_write` parameter to `true` for one-way notification-only mode on the client side. This makes `copydata_transport::write` method to behave synchronously, allowing the caller to safely destroy the RPC connection object immediately after a call to an RPC method.
+
+The window procedure must forward `WM_COPYDATA` messages to the transport using one of the following methods:
+
+```C++
+bool on_copydata(const MSG &msg) noexcept;
+bool on_copydata(HWND caller, const COPYDATASTRUCT &cds) noexcept;
+```
+
+These methods return `true` if they successfully process the window message and `false` otherwise. You can use the `get_transport` connection method to get a reference to the connection's transport instance.
 
 ## Request Cancellation
 

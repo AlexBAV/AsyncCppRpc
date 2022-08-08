@@ -103,15 +103,12 @@ namespace crpc
 			bool on_copydata(const MSG &msg) noexcept
 			{
 				if (msg.message == WM_COPYDATA)
-				{
-					on_copydata(reinterpret_cast<HWND>(msg.wParam), *reinterpret_cast<COPYDATASTRUCT *>(msg.lParam));
-					return true;
-				}
+					return on_copydata(reinterpret_cast<HWND>(msg.wParam), *reinterpret_cast<COPYDATASTRUCT *>(msg.lParam));
 				else
 					return false;
 			}
 
-			void on_copydata([[maybe_unused]] HWND caller, const COPYDATASTRUCT &cs) noexcept
+			bool on_copydata([[maybe_unused]] HWND caller, const COPYDATASTRUCT &cs) noexcept
 			{
 				if (cs.dwData == CALL_ID)
 				{
@@ -124,9 +121,11 @@ namespace crpc
 						{
 							auto begin = reinterpret_cast<std::byte *>(header + 1);
 							input_queue.push(message_t{ *header, { begin, begin + header->payload_size } });
+							return true;
 						}
 					}
 				}
+				return false;
 			}
 		};
 
