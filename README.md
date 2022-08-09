@@ -7,12 +7,12 @@ Light-weight asynchronous transport-agnostic header-only C++ RPC library.
 * No macros! (Well, a single macro is still required).
 * Transport-agnostic: RPC logic is completely separated from the underlying transport.
 * Full duplex connection: a client makes an asynchronous call to the server and receives an answer.
-* Connection parties may both act as server and client at the same time, that is, it is possible to make RPC calls in both directions.
+* Connected parties may both act as server and client at the same time, that is, it is possible to make RPC calls in both directions.
 * Allows multiple requests to be issued on the connection at the same time.
 * Supports "request-response" asynchronous model and "fire-and-forget" notification model.
-* Supports extensible RPC interfaces: allows to add new RPC methods to existing interfaces without the need to recompile clients.
-* Propagates errors back to callers.
-* Has built-in serialization and marshalling support for most native and STL types and provides a simple extensibility protocol for not-supported or custom types.
+* Supports extendable RPC interfaces: allows to add new RPC methods to existing interfaces without the need to recompile clients.
+* Propagates exceptions back to callers.
+* Has built-in serialization and marshalling support for most of the native and STL types and provides a simple extensibility protocol for not-supported or custom types.
 
 ## Motivating Example
 
@@ -116,7 +116,7 @@ That's it: a client function takes a connected transport, creates a connection o
 
 ## Dependencies
 
-This header-only library depends on the [Coroutine Support Library (corsl)](https://github.com/AlexBAV/corsl) for Windows Thread Pool-based coroutine support and on the following header-only Boost libraries: `boost.mp11`, `boost.intrusive` and `boost.describe`. The current tested Boost versions are from 1.79. It also uses parts of [cista serialization library](https://github.com/felixguendling/cista).
+This header-only library depends on the [Coroutine Support Library (corsl)](https://github.com/AlexBAV/corsl) for Windows Thread Pool-based coroutine support and on the following header-only Boost libraries: `boost.mp11`, `boost.intrusive` and `boost.describe` (version 1.79.0 or later). It also uses parts of [cista serialization library](https://github.com/felixguendling/cista).
 
 ## TOC
 
@@ -157,7 +157,7 @@ The library checks the following invariants and generates a compilation error if
 
 A server can extend published interfaces by adding new methods. It is also allowed to change the order of methods in an interface. Client re-compilation is not required in both these cases.
 
-If server removes methods from the interface after it is published and client calls one of the removed methods, an error is returned to the client.
+If server removes methods from the interface after it has been published and client calls one of the removed methods, a `corsl::hresult_error` exception with error code `E_NOTIMPL` is thrown on the client.
 
 Changing the types, the number or order of parameters in a published method will lead to an undefined behavior.
 
@@ -175,10 +175,10 @@ class connection;
 `Marshallers` is a list of one or two marshalling types. You get those marshalling types using the following two templates:
 
 ```C++
-template<class RpcInterface>
+template<typename RpcInterface>
 struct server_of;   // server-side marshaller for RpcInterface interface
 
-template<class RpcInterface>
+template<typename RpcInterface>
 struct client_of;   // client-side marshaller for RpcInterface interface
 ```
 
@@ -389,7 +389,7 @@ Take the following additional notes regarding supported and unsupported serializ
 In a nutshell, a transport is a type that satisfies the `crpc::concepts::transport` concept:
 
 ```C++
-template<class T>
+template<typename T>
 concept transport = 
     std::is_default_constructible_v<T> && 
     std::is_move_constructible_v<T> &&
@@ -468,7 +468,7 @@ In order to create a named pipe server side of a transport, call the following m
 ```C++
 namespace crpc::transports::pipe
 {
-    template<class F = std::identity>
+    template<typename F = std::identity>
     inline corsl::future<pipe_transport> create_server(
         std::wstring_view pipe_name, const corsl::cancellation_source &cancel, 
         const create_server_params<F> &params = {})
@@ -478,7 +478,7 @@ namespace crpc::transports::pipe
 Where `pipe_name` is a name of a pipe, `cancel` is a cancellation source and `params` is a set of optional pipe server parameters:
 
 ```C++
-template<class F = std::identity>
+template<typename F = std::identity>
 struct create_server_params
 {
     const SECURITY_DESCRIPTOR *sd{};
