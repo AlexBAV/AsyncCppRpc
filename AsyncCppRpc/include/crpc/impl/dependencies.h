@@ -9,6 +9,7 @@
 #include <vector>
 #include <span>
 #include <type_traits>
+#include <cassert>
 
 // boost.describe
 #include <boost/describe.hpp>

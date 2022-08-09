@@ -11,8 +11,6 @@
 #include "impl/dependencies.h"
 #include "impl/transport.h"
 
-#include <wil/resource.h>
-
 namespace crpc
 {
 	namespace details::pipe
@@ -24,7 +22,7 @@ namespace crpc
 
 		constexpr const size_t MaxSupportedRead = 65536;
 
-		inline auto prepare_handle(const wil::unique_handle &pipe) noexcept
+		inline auto prepare_handle(const winrt::file_handle &pipe) noexcept
 		{
 			SetFileCompletionNotificationModes(pipe.get(), FILE_SKIP_COMPLETION_PORT_ON_SUCCESS);
 			return corsl::resumable_io{ pipe.get() };
@@ -32,7 +30,7 @@ namespace crpc
 
 		class pipe_transport
 		{
-			wil::unique_handle pipe;
+			winrt::file_handle pipe;
 			corsl::resumable_io pipe_io;
 			corsl::cancellation_source cancel;
 			bool bServer;
@@ -77,14 +75,14 @@ namespace crpc
 
 		public:
 			pipe_transport() = default;
-			pipe_transport(wil::unique_handle pipe, bool server) noexcept :
+			pipe_transport(winrt::file_handle pipe, bool server) noexcept :
 				pipe{ std::move(pipe) },
 				pipe_io{ prepare_handle(this->pipe) },
 				bServer{ server }
 			{
 			}
 
-			pipe_transport(wil::unique_handle pipe, corsl::resumable_io pipe_io, bool server) noexcept :
+			pipe_transport(winrt::file_handle pipe, corsl::resumable_io pipe_io, bool server) noexcept :
 				pipe{ std::move(pipe) },
 				pipe_io{ std::move(pipe_io) },
 				bServer{ server }
@@ -151,7 +149,7 @@ namespace crpc
 					}
 				}
 				else
-					pipe.reset();
+					pipe.close();
 			}
 
 			void impersonate()
@@ -177,7 +175,7 @@ namespace crpc
 
 			while (Retries--)
 			{
-				wil::unique_handle pipe{ ::CreateFileW(path.c_str(), GENERIC_READ | GENERIC_WRITE,
+				winrt::file_handle pipe{ ::CreateFileW(path.c_str(), GENERIC_READ | GENERIC_WRITE,
 					FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, nullptr) };
 				if (!pipe)
 				{
@@ -228,7 +226,7 @@ namespace crpc
 				false
 			};
 			auto* psa = params.sd ? &sa : nullptr;
-			wil::unique_handle pipe{ CreateNamedPipeW((L"\\\\.\\pipe\\"s + std::wstring{ name }).c_str(),
+			winrt::file_handle pipe{ CreateNamedPipeW((L"\\\\.\\pipe\\"s + std::wstring{ name }).c_str(),
 				PIPE_ACCESS_DUPLEX | FILE_FLAG_OVERLAPPED,
 				PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | (params.local_only ? 0 : PIPE_ACCEPT_REMOTE_CLIENTS),
 				PIPE_UNLIMITED_INSTANCES, params.out_buffer_size, params.in_buffer_size, params.default_timeout, psa) };
