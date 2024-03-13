@@ -395,7 +395,7 @@ namespace crpc
 				result[ord] = { get_method_id<M>(), ord };
 				++ord;
 			});
-			sr::sort(result, sr::less{}, std::bind_front(&method_map_entry::name));
+			sr::sort(result, sr::less{}, [](const auto& e) { return e.name; });
 			return result;
 		}
 
@@ -416,7 +416,7 @@ namespace crpc
 		protected:
 			corsl::future<payload_t> dispatch(method_id name, std::vector<std::byte> data)
 			{
-				if (auto it = sr::lower_bound(static_method_map, name, sr::less{}, std::bind_front(&method_map_entry::name)); it != static_method_map.end() && it->name == name)
+				if (auto it = sr::lower_bound(static_method_map, name, sr::less{}, [](const auto& e) { return e.name; }); it != static_method_map.end() && it->name == name)
 				{
 					co_return co_await mp11::mp_with_index<mp11::mp_size<Methods>::value>(static_cast<size_t>(it->ordinal), [&]<typename I>(I) -> corsl::future<payload_t>
 					{
@@ -460,7 +460,7 @@ namespace crpc
 
 			void void_dispatch(method_id name, std::vector<std::byte> data)
 			{
-				if (auto it = sr::lower_bound(static_method_map, name, sr::less{}, std::bind_front(&method_map_entry::name)); it != static_method_map.end() && it->name == name)
+				if (auto it = sr::lower_bound(static_method_map, name, sr::less{}, [](const auto& e) { return e.name; }); it != static_method_map.end() && it->name == name)
 				{
 					mp11::mp_with_index<mp11::mp_size<Methods>::value>(static_cast<size_t>(it->ordinal), [&]<typename I>(I)
 					{

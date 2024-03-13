@@ -10,6 +10,7 @@
 #include <span>
 #include <type_traits>
 #include <cassert>
+#include <expected>
 
 // boost.describe
 #include <boost/describe.hpp>

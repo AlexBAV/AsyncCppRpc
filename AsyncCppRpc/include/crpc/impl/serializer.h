@@ -116,6 +116,18 @@ namespace crpc
 					write(*val);
 			}
 
+			// expected
+			template<class V, class E>
+			void write(const std::expected<V, E> &val)
+			{
+				const auto present = static_cast<bool>(val);
+				write(present);
+				if (present)
+					write(*val);
+				else
+					write(val.error());
+			}
+
 			// pair
 			template<class P1, class P2>
 			void write(const std::pair<P1, P2> &val)
@@ -171,7 +183,7 @@ namespace crpc
 				}
 				else if constexpr (boost::describe::has_describe_members<T>::value)
 				{
-					mp11::mp_for_each<boost::describe::describe_members<T>>([&]<typename D>(D)
+					mp11::mp_for_each<boost::describe::describe_members<T, boost::describe::mod_any_access>>([&]<typename D>(D)
 					{
 						write(val.*D::pointer);
 					});
@@ -230,6 +242,12 @@ namespace crpc
 		}
 
 		// Reader
+		template<class Container>
+		concept container_has_resize = requires(Container & c, size_t newsize)
+		{
+			c.resize(newsize);
+		};
+
 		template<class T, class Reader>
 		concept supports_custom_read_internal = requires(T & v, Reader & r)
 		{
@@ -307,6 +325,25 @@ namespace crpc
 				}
 			}
 
+			// expected
+			template<class T, class E>
+			void read(std::expected<T, E> &val)
+			{
+				bool present{};
+				read(present);
+				if (present)
+				{
+					val.emplace();
+					read(*val);
+				}
+				else
+				{
+					E err;
+					read(err);
+					val = std::unexpected(std::move(err));
+				}
+			}
+
 			// tuple
 			template<class...Args>
 			void read(std::tuple<Args...> &val)
@@ -359,7 +396,7 @@ namespace crpc
 				}
 				else if constexpr (boost::describe::has_describe_members<T>::value)
 				{
-					mp11::mp_for_each<boost::describe::describe_members<T>>([&]<typename D>(D)
+					mp11::mp_for_each<boost::describe::describe_members<T, boost::describe::mod_any_access>>([&]<typename D>(D)
 					{
 						read(val.*D::pointer);
 					});
@@ -390,7 +427,8 @@ namespace crpc
 			template<class T>
 			void read_range(T &val, size_t count, std::true_type)
 			{
-				val.resize(count);
+				if constexpr (container_has_resize<T>)
+					val.resize(count);
 				read(val.begin(), val.end(), std::true_type{});
 			}
 
@@ -429,6 +467,11 @@ namespace crpc
 			{
 				read(val);
 				return *this;
+			}
+
+			auto get_remaining() const noexcept
+			{
+				return std::span{ it, range.end() };
 			}
 		};
 	}

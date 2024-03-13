@@ -55,11 +55,12 @@ namespace crpc
 					});
 			}
 
-			auto read(std::span<std::byte> data)
+			auto read(std::span<std::byte> data, std::atomic<OVERLAPPED *> &pover)
 			{
 				assert(data.size() <= MaxSupportedRead && "due to bug in Win8 or later, read may actually read more than 64K, but will only report 64K");
-				return pipe_io.start_pending([=](OVERLAPPED& o)
+				return pipe_io.start_pending([=, &pover](OVERLAPPED& o)
 					{
+						pover.store(&o, std::memory_order_relaxed);
 						if (::ReadFile(pipe.get(), data.data(), static_cast<DWORD>(data.size()), nullptr, &o))
 							return false;
 						else
@@ -120,9 +121,18 @@ namespace crpc
 				if (!pipe)
 					corsl::throw_error(E_FAIL);
 
+				corsl::cancellation_token token{ co_await cancel };
+				std::atomic<OVERLAPPED *> pover{ nullptr };
+				corsl::cancellation_subscription subscription{ token,[h = pipe.get(), &pover]
+				{
+					if (auto *p = pover.load(std::memory_order_relaxed))
+						CancelIoEx(h, p);
+				} };
+
 				pipe_message_header pmh;
-				if (sizeof(pmh) != co_await read(as_writable_bytes(std::span{ &pmh,1 })))
+				if (sizeof(pmh) != co_await read(as_writable_bytes(std::span{ &pmh,1 }), pover))
 					corsl::throw_error(E_INVALIDARG);
+
 
 				auto size = pmh.payload_size;
 				payload_t payload(size);
@@ -131,7 +141,7 @@ namespace crpc
 				while (size)
 				{
 					const auto toread = std::min(static_cast<uint32_t>(MaxSupportedRead), size);
-					const auto read_bytes = co_await read(std::span{ data,toread });
+					const auto read_bytes = co_await read(std::span{ data,toread }, pover);
 					data += read_bytes;
 					size -= read_bytes;
 				}
@@ -175,15 +185,12 @@ namespace crpc
 
 			while (Retries--)
 			{
-				winrt::file_handle pipe{ ::CreateFileW(path.c_str(), GENERIC_READ | GENERIC_WRITE,
-					FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, nullptr) };
-				if (!pipe)
+				if (winrt::file_handle pipe{ ::CreateFileW(path.c_str(), GENERIC_READ | GENERIC_WRITE,
+					FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, nullptr) }; !pipe)
 				{
-					auto err = GetLastError();
-					if (err == ERROR_FILE_NOT_FOUND)
+					if (const auto err = GetLastError(); err == ERROR_FILE_NOT_FOUND)
 					{
-						auto res = WaitNamedPipeW(path.c_str(), static_cast<DWORD>(std::chrono::duration_cast<std::chrono::milliseconds>(Timeout).count()));
-						if (!res)
+						if (!WaitNamedPipeW(path.c_str(), static_cast<DWORD>(std::chrono::duration_cast<std::chrono::milliseconds>(Timeout).count())))
 						{
 							auto error = GetLastError();
 							if (error != ERROR_SEM_TIMEOUT)
@@ -203,7 +210,15 @@ namespace crpc
 			corsl::throw_win32_error(ERROR_TIMEOUT);
 		}
 
-		template<class F = std::identity>
+		struct null_caller
+		{
+			template<class...Args>
+			constexpr void operator()(Args &&...args) const noexcept
+			{
+			}
+		};
+
+		template<class F = null_caller>
 		struct create_server_params
 		{
 			const SECURITY_DESCRIPTOR *sd{};
@@ -215,7 +230,7 @@ namespace crpc
 			bool local_only{ false };
 		};
 
-		template<class F = std::identity>
+		template<class F = null_caller>
 		inline corsl::future<pipe_transport> create_server(std::wstring_view name, const corsl::cancellation_source &cancel, const create_server_params<F> &params = {})
 		{
 			corsl::cancellation_token token{ co_await cancel };
@@ -239,18 +254,15 @@ namespace crpc
 			std::atomic<OVERLAPPED*> pover{ nullptr };
 			corsl::cancellation_subscription subscription{ token,[h = pipe.get(), &pover]
 			{
-				auto * p = pover.load(std::memory_order_relaxed);
-				if (p)
+				if (auto *p = pover.load(std::memory_order_relaxed))
 					CancelIoEx(h, p);
 			} };
 			co_await io.start_pending([&](OVERLAPPED& o)
 				{
 					pover.store(&o, std::memory_order_relaxed);
-					auto res = ConnectNamedPipe(pipe.get(), &o);
-					if (!res)
+					if (!ConnectNamedPipe(pipe.get(), &o))
 					{
-						auto error = GetLastError();
-						if (error == ERROR_IO_PENDING)
+						if (const auto error = GetLastError(); error == ERROR_IO_PENDING)
 						{
 							params.on_after_wait_pending();
 							return true;

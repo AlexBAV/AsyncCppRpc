@@ -21,6 +21,7 @@
       <EnforceTypeConversionRules>true</EnforceTypeConversionRules>
       <FloatingPointModel>Fast</FloatingPointModel>
       <ConformanceMode>true</ConformanceMode>
+      <PreprocessorDefinitions>CORSL_NO_SNAPSHOTS;_UNICODE;UNICODE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup />

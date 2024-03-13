@@ -265,7 +265,7 @@ namespace crpc
 					cancel = {};
 					std::scoped_lock l2{ completions_lock };
 					for (auto &p : completions)
-						p.second->set_exception(std::make_exception_ptr(corsl::operation_cancelled{}));
+						p.second->set_exception_async(std::make_exception_ptr(corsl::operation_cancelled{}));
 					completions.clear();
 					running = false;
 				}

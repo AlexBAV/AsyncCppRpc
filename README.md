@@ -12,7 +12,7 @@ Light-weight asynchronous transport-agnostic header-only C++ RPC library.
 * Supports "request-response" asynchronous model and "fire-and-forget" notification model.
 * Supports extendable RPC interfaces: allows to add new RPC methods to existing interfaces without the need to recompile clients.
 * Propagates exceptions back to callers.
-* Has built-in serialization and marshalling support for most of the native and STL types and provides a simple extensibility protocol for not-supported or custom types.
+* Has built-in serialization and marshalling support for most of the native and STL types and provides a simple extensibility protocol for non-supported or custom types.
 
 ## Motivating Example
 
@@ -292,6 +292,7 @@ The library has built-in serialization support for the following types.
 * `std::tuple<T...>`, where all `T`s are supported types.
 * `std::variant<T...>`, where all `T`s are supported types.
 * `std::optional<T>`, where `T` is a supported type.
+* `std::excpected<T1, T2>`, where `T1` and `T2` are supported types.
 * Any trivially-copied type.
 * Any `std::ranges::range<T>`, where T is a supported type.
 * Any aggregate-initialize `struct` consisting of members of supported types.
@@ -548,7 +549,7 @@ Request cancellation support is planned in future versions.
 
 This repository includes a sample implementation of an RPC server and RPC client.
 
-Visual Studio 2022 17.2.6 or later is required to build this sample.
+Visual Studio 2022 17.9.3 has been tested.
 
 Clone the repository, open the `AsyncCppRpc.sln` file in Visual Studio and build the solution. It will download all required dependencies through NuGet and vcpkg. Your vcpkg integration must be updated and integrated with Visual Studio for this to work.
 
