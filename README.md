@@ -77,7 +77,7 @@ corsl::future<> start_server(Transport &&transport)
 
     corsl::promise<> server_stopped;
 
-    connection.on_error([&](HRESULT error_code)
+    connection.on_error([&](HRESULT error_code, crpc::captured_on captured_on)
     {
         // A transport has generated an unrecoverable error (including client disconnection), 
         // stop server
@@ -166,13 +166,13 @@ Changing the types, the number or order of parameters in a published method will
 The central class template `connection` is used on both sides of the RPC channel:
 
 ```C++
-template<crpc::concepts::transport Transport, typename... Marshallers>
+template<crpc::concepts::transport Transport, typename... MarshallersOrTraits>
 class connection;
 ```
 
 `Transport` is a transport implementation type, that must satisfy the [`transport` concept](#transports), described below.
 
-`Marshallers` is a list of one or two marshalling types. You get those marshalling types using the following two templates:
+`MarshallersOrTraits` is a list of one or two marshalling types. You get those marshalling types using the following two templates:
 
 ```C++
 template<typename RpcInterface>
@@ -183,6 +183,22 @@ struct client_of;   // client-side marshaller for RpcInterface interface
 ```
 
 A single connection instantiation can be a client, server, or both client and server side of a channel. In the latter case, you can use either the single RPC interface or two different RPC interfaces for asymmetric communication.
+
+### Optional Serializer State
+
+You can also pass an optional *serializer state* type using the `crpc::with_serializer_state` trait:
+
+```C++
+using my_connection_t = crpc::connection<transport_t, crpc::server_of<IMyInterface>, crpc::with_serializer_state<my_custom_state>>;
+```
+
+In this case, connection type will derive from the serializer state type and its constructor will forward parameters to serializer state type's constructor. The connection object will also have a following method:
+
+```C++
+my_custom_state &get_serializer_state() noexcept;
+```
+
+Any custom `serializer_read` and `serialize_write` function (see [Custom Type Serialization](#custom-type-serialization) below) will be able to query serializer state object using the `get_state()` method from the reader or writer object passed to them.
 
 ### Starting Connection
 
@@ -292,7 +308,7 @@ The library has built-in serialization support for the following types.
 * `std::tuple<T...>`, where all `T`s are supported types.
 * `std::variant<T...>`, where all `T`s are supported types.
 * `std::optional<T>`, where `T` is a supported type.
-* `std::excpected<T1, T2>`, where `T1` and `T2` are supported types.
+* `std::expected<T1, T2>`, where `T1` and `T2` are supported types.
 * Any trivially-copied type.
 * Any `std::ranges::range<T>`, where T is a supported type.
 * Any aggregate-initialize `struct` consisting of members of supported types.
@@ -339,12 +355,12 @@ class foo
     std::string b;
 
 public:
-    void serialize_write(crpc::Writer &w) const
+    void serialize_write(crpc::writer auto &w) const
     {
         w << a << b;
     }
 
-    void serialize_read(crpc::Reader &r)
+    void serialize_read(crpc::reader auto &r)
     {
         r >> a >> b;
     }
@@ -366,12 +382,12 @@ namespace test
 //...
 namespace test
 {
-    inline void serialize_write(crpc::Writer &w, const bar &b)
+    inline void serialize_write(crpc::writer auto &w, const bar &b)
     {
         w << b.get_a();
     }
 
-    inline void serialize_read(crpc::Reader &r, bar &b)
+    inline void serialize_read(crpc::reader auto &r, bar &b)
     {
         int v;
         w >> v;
