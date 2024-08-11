@@ -74,6 +74,25 @@ namespace crpc
 					});
 			}
 
+			inline bool check_impersonation() const noexcept
+			{
+				// You should not be impersonating at this point.  Use GetThreadToken
+				// instead of the OpenXXXToken functions or call Revert before
+				// calling Impersonate.
+				HANDLE hToken = INVALID_HANDLE_VALUE;
+				if (!::OpenThreadToken(::GetCurrentThread(), 0, false, &hToken) &&
+					::GetLastError() != ERROR_NO_TOKEN)
+				{
+					// ATLTRACE(atlTraceSecurity, 2, _T("Caution: replacing thread impersonation token.\n"));
+					return true;
+				}
+				if (hToken != INVALID_HANDLE_VALUE)
+				{
+					::CloseHandle(hToken);
+				}
+				return false;
+			}
+
 		public:
 			pipe_transport() = default;
 			pipe_transport(winrt::file_handle pipe, bool server) noexcept :
@@ -162,14 +181,29 @@ namespace crpc
 					pipe.close();
 			}
 
-			void impersonate()
+			void impersonate() const
 			{
 				corsl::check_win32_api(ImpersonateNamedPipeClient(pipe.get()));
 			}
 
-			void revert_to_self()
+			void revert_to_self() const
 			{
 				corsl::check_win32_api(RevertToSelf());
+			}
+
+			winrt::handle get_client_token(DWORD DesiredAccess = TOKEN_QUERY, bool openasself = false) const noexcept
+			{
+				check_impersonation();
+
+				if (!::ImpersonateNamedPipeClient(pipe.get()))
+					return {};
+
+				HANDLE hToken;
+				if (!::OpenThreadToken(::GetCurrentThread(), DesiredAccess, openasself, &hToken))
+					return {};
+
+				::RevertToSelf();
+				return winrt::handle{ hToken };
 			}
 		};
 	}
@@ -178,36 +212,53 @@ namespace crpc
 	{
 		using details::pipe::pipe_transport;
 
-		inline pipe_transport create_client(std::wstring_view server, std::wstring_view name, winrt::Windows::Foundation::TimeSpan Timeout, unsigned Retries)
-		{
-			using namespace std::literals;
-			const auto path = L"\\\\"s + std::wstring{ server } + L"\\pipe\\"s + std::wstring{ name };
+		struct forever_t {};
+		inline constexpr const forever_t forever{};
 
-			while (Retries--)
+		namespace impl
+		{
+			inline pipe_transport create_client(std::wstring_view server, std::wstring_view name, DWORD waitms, unsigned retries)
 			{
-				if (winrt::file_handle pipe{ ::CreateFileW(path.c_str(), GENERIC_READ | GENERIC_WRITE,
-					FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, nullptr) }; !pipe)
+				assert(retries >= 1 && "The number of retries must be greater than 0");
+				using namespace std::literals;
+				const auto path = L"\\\\"s + std::wstring{ server } + L"\\pipe\\"s + std::wstring{ name };
+
+				while (retries--)
 				{
-					if (const auto err = GetLastError(); err == ERROR_FILE_NOT_FOUND)
+					if (winrt::file_handle pipe{ ::CreateFileW(path.c_str(), GENERIC_READ | GENERIC_WRITE,
+						FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, nullptr) }; !pipe)
 					{
-						if (!WaitNamedPipeW(path.c_str(), static_cast<DWORD>(std::chrono::duration_cast<std::chrono::milliseconds>(Timeout).count())))
+						if (const auto err = GetLastError(); err == ERROR_FILE_NOT_FOUND)
 						{
-							auto error = GetLastError();
-							if (error != ERROR_SEM_TIMEOUT)
-								corsl::throw_win32_error(error);
+							if (!WaitNamedPipeW(path.c_str(), waitms))
+							{
+								auto error = GetLastError();
+								if (error != ERROR_SEM_TIMEOUT)
+									corsl::throw_win32_error(error);
+							}
 						}
+						else
+							corsl::throw_win32_error(err);
 					}
 					else
-						corsl::throw_win32_error(err);
+					{
+						DWORD mode = PIPE_READMODE_BYTE;
+						corsl::check_win32_api(SetNamedPipeHandleState(pipe.get(), &mode, nullptr, nullptr));
+						return { std::move(pipe), false };
+					}
 				}
-				else
-				{
-					DWORD mode = PIPE_READMODE_BYTE;
-					corsl::check_win32_api(SetNamedPipeHandleState(pipe.get(), &mode, nullptr, nullptr));
-					return { std::move(pipe), false };
-				}
+				corsl::throw_win32_error(ERROR_TIMEOUT);
 			}
-			corsl::throw_win32_error(ERROR_TIMEOUT);
+		}
+
+		inline pipe_transport create_client(std::wstring_view server, std::wstring_view name, winrt::Windows::Foundation::TimeSpan timeout = std::chrono::milliseconds{ NMPWAIT_USE_DEFAULT_WAIT }, unsigned retries = 1)
+		{
+			return impl::create_client(server, name, static_cast<DWORD>(std::chrono::duration_cast<std::chrono::milliseconds>(timeout).count()), retries);
+		}
+
+		inline pipe_transport create_client(std::wstring_view server, std::wstring_view name, forever_t, unsigned retries = 1)
+		{
+			return impl::create_client(server, name, NMPWAIT_WAIT_FOREVER, retries);
 		}
 
 		struct null_caller

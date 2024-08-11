@@ -87,14 +87,6 @@ namespace crpc
 		template<class R>
 		concept valid_return = std::same_as<void, R> || future<R>;
 
-		template<class R>
-		inline R unmarshal(std::span<const std::byte> data)
-		{
-			R result;
-			Reader{ data } >> result;
-			return result;
-		}
-
 		template<class MD>
 		using is_void_method = std::bool_constant<std::same_as<void, typename MD::result_type>>;
 
@@ -102,6 +94,19 @@ namespace crpc
 		class marshal_client : public Interface
 		{
 			static_assert(boost::describe::has_describe_members<Interface>::value, "Interface type must be described using BOOST_DESCRIBE_STRUCT");
+
+			auto &get_state() noexcept
+			{
+				return static_cast<Derived *>(this)->get_serializer_state();
+			}
+
+			template<class R>
+			inline R unmarshal(std::span<const std::byte> data)
+			{
+				R result;
+				Reader{ data, get_state() } >> result;
+				return result;
+			}
 
 			template<method_descriptor M>
 			auto build_call_member(method_id name)
@@ -124,35 +129,35 @@ namespace crpc
 					{
 						return[this, name]<typename P1>(P1 && p1) -> FR
 						{
-							void_call(name, create_writer(std::forward<P1>(p1)).get());
+							void_call(name, create_writer_with_state(get_state(), std::forward<P1>(p1)).get());
 						};
 					}
 					else if constexpr (count == 2)
 					{
 						return[this, name]<typename P1, typename P2>(P1 && p1, P2 && p2) -> FR
 						{
-							void_call(name, create_writer(std::forward<P1>(p1), std::forward<P2>(p2)).get());
+							void_call(name, create_writer_with_state(get_state(), std::forward<P1>(p1), std::forward<P2>(p2)).get());
 						};
 					}
 					else if constexpr (count == 3)
 					{
 						return[this, name]<typename P1, typename P2, typename P3>(P1 && p1, P2 && p2, P3 && p3) -> FR
 						{
-							void_call(name, create_writer(std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3)).get());
+							void_call(name, create_writer_with_state(get_state(), std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3)).get());
 						};
 					}
 					else if constexpr (count == 4)
 					{
 						return[this, name]<typename P1, typename P2, typename P3, typename P4>(P1 && p1, P2 && p2, P3 && p3, P4 && p4) -> FR
 						{
-							void_call(name, create_writer(std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3), std::forward<P4>(p4)).get());
+							void_call(name, create_writer_with_state(get_state(), std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3), std::forward<P4>(p4)).get());
 						};
 					}
 					else if constexpr (count == 5)
 					{
 						return[this, name]<typename P1, typename P2, typename P3, typename P4, typename P5>(P1 && p1, P2 && p2, P3 && p3, P4 && p4, P5 && p5) -> FR
 						{
-							void_call(name, create_writer(std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3), std::forward<P4>(p4),
+							void_call(name, create_writer_with_state(get_state(), std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3), std::forward<P4>(p4),
 								std::forward<P5>(p5)).get());
 						};
 					}
@@ -161,7 +166,7 @@ namespace crpc
 						return[this, name]<typename P1, typename P2, typename P3, typename P4, typename P5, typename P6>(P1 && p1, P2 && p2, P3 && p3, P4 && p4,
 							P5 && p5, P6 && p6) -> FR
 						{
-							void_call(name, create_writer(std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3), std::forward<P4>(p4),
+							void_call(name, create_writer_with_state(get_state(), std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3), std::forward<P4>(p4),
 								std::forward<P5>(p5), std::forward<P6>(p6)).get());
 						};
 					}
@@ -170,7 +175,7 @@ namespace crpc
 						return[this, name]<typename P1, typename P2, typename P3, typename P4, typename P5, typename P6, typename P7>(P1 && p1, P2 && p2, P3 && p3,
 							P4 && p4, P5 && p5, P6 && p6, P7 && p7) -> FR
 						{
-							void_call(name, create_writer(std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3), std::forward<P4>(p4),
+							void_call(name, create_writer_with_state(get_state(), std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3), std::forward<P4>(p4),
 								std::forward<P5>(p5), std::forward<P6>(p6), std::forward<P7>(p7)).get());
 						};
 					}
@@ -179,7 +184,7 @@ namespace crpc
 						return[this, name]<typename P1, typename P2, typename P3, typename P4, typename P5, typename P6, typename P7, typename P8>(P1 && p1,
 							P2 && p2, P3 && p3, P4 && p4, P5 && p5, P6 && p6, P7 && p7, P8 && p8) -> FR
 						{
-							void_call(name, create_writer(std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3), std::forward<P4>(p4),
+							void_call(name, create_writer_with_state(get_state(), std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3), std::forward<P4>(p4),
 								std::forward<P5>(p5), std::forward<P6>(p6), std::forward<P7>(p7), std::forward<P8>(p8)).get());
 						};
 					}
@@ -188,7 +193,7 @@ namespace crpc
 						return[this, name]<typename P1, typename P2, typename P3, typename P4, typename P5, typename P6, typename P7, typename P8, typename P9>
 							(P1 && p1, P2 && p2, P3 && p3, P4 && p4, P5 && p5, P6 && p6, P7 && p7, P8 && p8, P9 && p9) -> FR
 						{
-							void_call(name, create_writer(std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3), std::forward<P4>(p4),
+							void_call(name, create_writer_with_state(get_state(), std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3), std::forward<P4>(p4),
 								std::forward<P5>(p5), std::forward<P6>(p6), std::forward<P7>(p7), std::forward<P8>(p8), std::forward<P9>(p9)).get());
 						};
 					}
@@ -198,7 +203,7 @@ namespace crpc
 							typename P10>
 							(P1 && p1, P2 && p2, P3 && p3, P4 && p4, P5 && p5, P6 && p6, P7 && p7, P8 && p8, P9 && p9, P10 && p10) -> FR
 						{
-							void_call(name, create_writer(std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3), std::forward<P4>(p4),
+							void_call(name, create_writer_with_state(get_state(), std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3), std::forward<P4>(p4),
 								std::forward<P5>(p5), std::forward<P6>(p6), std::forward<P7>(p7), std::forward<P8>(p8), std::forward<P9>(p9),
 								std::forward<P10>(p10)).get());
 						};
@@ -226,9 +231,9 @@ namespace crpc
 						return[this, name]<typename P1>(P1 && p1) -> FR
 						{
 							if constexpr (is_future_void)
-								co_await call(name, create_writer(std::forward<P1>(p1)).get());
+								co_await call(name, create_writer_with_state(get_state(), std::forward<P1>(p1)).get());
 							else
-								co_return unmarshal<R>(co_await call(name, create_writer(std::forward<P1>(p1)).get()));
+								co_return unmarshal<R>(co_await call(name, create_writer_with_state(get_state(), std::forward<P1>(p1)).get()));
 						};
 					}
 					else if constexpr (count == 2)
@@ -236,9 +241,9 @@ namespace crpc
 						return[this, name]<typename P1, typename P2>(P1 && p1, P2 && p2) -> FR
 						{
 							if constexpr (is_future_void)
-								co_await call(name, create_writer(std::forward<P1>(p1), std::forward<P2>(p2)).get());
+								co_await call(name, create_writer_with_state(get_state(), std::forward<P1>(p1), std::forward<P2>(p2)).get());
 							else
-								co_return unmarshal<R>(co_await call(name, create_writer(std::forward<P1>(p1), std::forward<P2>(p2)).get()));
+								co_return unmarshal<R>(co_await call(name, create_writer_with_state(get_state(), std::forward<P1>(p1), std::forward<P2>(p2)).get()));
 						};
 					}
 					else if constexpr (count == 3)
@@ -246,9 +251,9 @@ namespace crpc
 						return[this, name]<typename P1, typename P2, typename P3>(P1 && p1, P2 && p2, P3 && p3) -> FR
 						{
 							if constexpr (is_future_void)
-								co_await call(name, create_writer(std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3)).get());
+								co_await call(name, create_writer_with_state(get_state(), std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3)).get());
 							else
-								co_return unmarshal<R>(co_await call(name, create_writer(std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3)).get()));
+								co_return unmarshal<R>(co_await call(name, create_writer_with_state(get_state(), std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3)).get()));
 						};
 					}
 					else if constexpr (count == 4)
@@ -256,9 +261,9 @@ namespace crpc
 						return[this, name]<typename P1, typename P2, typename P3, typename P4>(P1 && p1, P2 && p2, P3 && p3, P4 && p4) -> FR
 						{
 							if constexpr (is_future_void)
-								co_await call(name, create_writer(std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3), std::forward<P4>(p4)).get());
+								co_await call(name, create_writer_with_state(get_state(), std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3), std::forward<P4>(p4)).get());
 							else
-								co_return unmarshal<R>(co_await call(name, create_writer(std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3),
+								co_return unmarshal<R>(co_await call(name, create_writer_with_state(get_state(), std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3),
 									std::forward<P4>(p4)).get()));
 						};
 					}
@@ -267,10 +272,10 @@ namespace crpc
 						return[this, name]<typename P1, typename P2, typename P3, typename P4, typename P5>(P1 && p1, P2 && p2, P3 && p3, P4 && p4, P5 && p5) -> FR
 						{
 							if constexpr (is_future_void)
-								co_await call(name, create_writer(std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3), std::forward<P4>(p4),
+								co_await call(name, create_writer_with_state(get_state(), std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3), std::forward<P4>(p4),
 									std::forward<P5>(p5)).get());
 							else
-								co_return unmarshal<R>(co_await call(name, create_writer(std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3),
+								co_return unmarshal<R>(co_await call(name, create_writer_with_state(get_state(), std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3),
 									std::forward<P4>(p4), std::forward<P5>(p5)).get()));
 						};
 					}
@@ -280,10 +285,10 @@ namespace crpc
 							P5 && p5, P6 && p6) -> FR
 						{
 							if constexpr (is_future_void)
-								co_await call(name, create_writer(std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3), std::forward<P4>(p4),
+								co_await call(name, create_writer_with_state(get_state(), std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3), std::forward<P4>(p4),
 									std::forward<P5>(p5), std::forward<P6>(p6)).get());
 							else
-								co_return unmarshal<R>(co_await call(name, create_writer(std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3),
+								co_return unmarshal<R>(co_await call(name, create_writer_with_state(get_state(), std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3),
 									std::forward<P4>(p4), std::forward<P5>(p5), std::forward<P6>(p6)).get()));
 						};
 					}
@@ -293,10 +298,10 @@ namespace crpc
 							P4 && p4, P5 && p5, P6 && p6, P7 && p7) -> FR
 						{
 							if constexpr (is_future_void)
-								co_await call(name, create_writer(std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3), std::forward<P4>(p4),
+								co_await call(name, create_writer_with_state(get_state(), std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3), std::forward<P4>(p4),
 									std::forward<P5>(p5), std::forward<P6>(p6), std::forward<P7>(p7)).get());
 							else
-								co_return unmarshal<R>(co_await call(name, create_writer(std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3),
+								co_return unmarshal<R>(co_await call(name, create_writer_with_state(get_state(), std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3),
 									std::forward<P4>(p4), std::forward<P5>(p5), std::forward<P6>(p6), std::forward<P7>(p7)).get()));
 						};
 					}
@@ -306,10 +311,10 @@ namespace crpc
 							P2 && p2, P3 && p3, P4 && p4, P5 && p5, P6 && p6, P7 && p7, P8 && p8) -> FR
 						{
 							if constexpr (is_future_void)
-								co_await call(name, create_writer(std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3), std::forward<P4>(p4),
+								co_await call(name, create_writer_with_state(get_state(), std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3), std::forward<P4>(p4),
 									std::forward<P5>(p5), std::forward<P6>(p6), std::forward<P7>(p7), std::forward<P8>(p8)).get());
 							else
-								co_return unmarshal<R>(co_await call(name, create_writer(std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3),
+								co_return unmarshal<R>(co_await call(name, create_writer_with_state(get_state(), std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3),
 									std::forward<P4>(p4), std::forward<P5>(p5), std::forward<P6>(p6), std::forward<P7>(p7), std::forward<P8>(p8)).get()));
 						};
 					}
@@ -319,10 +324,10 @@ namespace crpc
 							(P1 && p1, P2 && p2, P3 && p3, P4 && p4, P5 && p5, P6 && p6, P7 && p7, P8 && p8, P9 && p9) -> FR
 						{
 							if constexpr (is_future_void)
-								co_await call(name, create_writer(std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3), std::forward<P4>(p4),
+								co_await call(name, create_writer_with_state(get_state(), std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3), std::forward<P4>(p4),
 									std::forward<P5>(p5), std::forward<P6>(p6), std::forward<P7>(p7), std::forward<P8>(p8), std::forward<P9>(p9)).get());
 							else
-								co_return unmarshal<R>(co_await call(name, create_writer(std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3),
+								co_return unmarshal<R>(co_await call(name, create_writer_with_state(get_state(), std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3),
 									std::forward<P4>(p4), std::forward<P5>(p5), std::forward<P6>(p6), std::forward<P7>(p7), std::forward<P8>(p8), std::forward<P9>(p9)).get()));
 						};
 					}
@@ -333,11 +338,11 @@ namespace crpc
 							(P1 && p1, P2 && p2, P3 && p3, P4 && p4, P5 && p5, P6 && p6, P7 && p7, P8 && p8, P9 && p9, P10 && p10) -> FR
 						{
 							if constexpr (is_future_void)
-								co_await call(name, create_writer(std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3), std::forward<P4>(p4),
+								co_await call(name, create_writer_with_state(get_state(), std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3), std::forward<P4>(p4),
 									std::forward<P5>(p5), std::forward<P6>(p6), std::forward<P7>(p7), std::forward<P8>(p8), std::forward<P9>(p9),
 									std::forward<P10>(p10)).get());
 							else
-								co_return unmarshal<R>(co_await call(name, create_writer(std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3),
+								co_return unmarshal<R>(co_await call(name, create_writer_with_state(get_state(), std::forward<P1>(p1), std::forward<P2>(p2), std::forward<P3>(p3),
 									std::forward<P4>(p4), std::forward<P5>(p5), std::forward<P6>(p6), std::forward<P7>(p7), std::forward<P8>(p8), std::forward<P9>(p9),
 									std::forward<P10>(p10)).get()));
 						};
@@ -413,6 +418,11 @@ namespace crpc
 			using get_method_descriptor = std::decay_t<decltype(std::declval<Interface *>()->*M::pointer)>;
 
 			//
+			auto &get_state() noexcept
+			{
+				return static_cast<Derived *>(this)->get_serializer_state();
+			}
+
 		protected:
 			corsl::future<payload_t> dispatch(method_id name, std::vector<std::byte> data)
 			{
@@ -425,7 +435,7 @@ namespace crpc
 						using FR = typename Member::result_type;
 						static_assert(valid_return<FR>, "Interface method return type must be a future or void");
 						typename Member::stored_args_t tuple;
-						Reader{ data } >> tuple;
+						Reader{ data, get_state() } >> tuple;
 
 						constexpr bool is_void = std::same_as<FR, void>;
 
@@ -443,7 +453,7 @@ namespace crpc
 							{
 								data.clear();
 								auto result = co_await std::apply(implementation.*M::pointer, std::move(tuple));
-								co_return create_writer_on(std::move(data), result).get();
+								co_return create_writer_on_with_state(std::move(data), get_state(), result).get();
 							}
 						}
 						else
@@ -473,7 +483,7 @@ namespace crpc
 						if constexpr (is_void)
 						{
 							typename Member::stored_args_t tuple;
-							Reader{ data } >> tuple;
+							Reader{ data, get_state() } >> tuple;
 
 							std::apply(implementation.*M::pointer, std::move(tuple));
 						}
@@ -512,6 +522,8 @@ namespace crpc
 	template<class Interface>
 	struct client_of
 	{
+		struct is_marshaller_trait;
+
 		template<class Derived>
 		using fn = details::marshal_client<Derived, Interface>;
 	};
@@ -519,7 +531,18 @@ namespace crpc
 	template<class Interface>
 	struct server_of
 	{
+		struct is_marshaller_trait;
+
 		template<class Derived>
 		using fn = details::marshal_server<Derived, Interface>;
 	};
+
+	template<class T>
+	concept is_marshaller = requires
+	{
+		typename T::is_marshaller_trait;
+	};
+
+	template<class T>
+	using is_marshaller_t = std::bool_constant<is_marshaller<T>>;
 }

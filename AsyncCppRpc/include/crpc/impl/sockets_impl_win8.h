@@ -30,6 +30,19 @@ namespace crpc::sockets::win8
 		namespace net = winrt::Windows::Networking;
 		namespace streams = winrt::Windows::Storage::Streams;
 
+		inline constexpr int to_integer(std::wstring_view text)
+		{
+			int result{};
+			for (auto c : text)
+			{
+				if ('0' <= c && c <= '9')
+					result = result * 10 + c - '0';
+				else
+					break;
+			}
+			return result;
+		}
+
 		class TcpSocket : public ITcpSocket
 		{
 			winrt::Windows::Networking::Sockets::StreamSocket socket;
@@ -115,14 +128,19 @@ namespace crpc::sockets::win8
 			{
 				listener.Control().KeepAlive(true);
 				token = listener.ConnectionReceived([this](const auto &, const auto &args)
-					{
-						clients.push(std::make_unique<TcpSocket>(args.Socket()));
-					});
+				{
+					clients.push(std::make_unique<TcpSocket>(args.Socket()));
+				});
 			}
 
 			~TcpSocketListener()
 			{
 				listener.ConnectionReceived(token);
+			}
+
+			virtual int get_port() const override
+			{
+				return to_integer(listener.Information().LocalPort());
 			}
 
 			virtual corsl::future<void> bind(const std::wstring &host, int port) override
@@ -138,12 +156,54 @@ namespace crpc::sockets::win8
 				}
 			}
 
+			virtual corsl::future<int> bind(const std::wstring &host) override
+			{
+				using namespace winrt::Windows::Networking::Sockets;
+				try
+				{
+					co_await listener.BindEndpointAsync(net::HostName{ host }, winrt::hstring{});
+					co_return to_integer(listener.Information().LocalPort());
+				}
+				catch (const winrt::hresult_error &er)
+				{
+					corsl::throw_error(er.code());
+				}
+			}
+
+#if defined(WINRT_Windows_Networking_Connectivity_H)
+			virtual corsl::future<void> bind(const winrt::Windows::Networking::Connectivity::NetworkAdapter &adapter, int port) override
+			{
+				try
+				{
+					co_await listener.BindServiceNameAsync(winrt::hstring(std::to_wstring(port)), net::Sockets::SocketProtectionLevel::PlainSocket, adapter);
+				}
+				catch (const winrt::hresult_error &er)
+				{
+					corsl::throw_error(er.code());
+				}
+			}
+#endif
+
 			virtual corsl::future<void> bind(int port) override
 			{
 				using namespace winrt::Windows::Networking::Sockets;
 				try
 				{
 					co_await listener.BindServiceNameAsync(winrt::hstring(std::to_wstring(port)));
+				}
+				catch (const winrt::hresult_error &er)
+				{
+					corsl::throw_error(er.code());
+				}
+			}
+
+			virtual corsl::future<int> bind() override
+			{
+				using namespace winrt::Windows::Networking::Sockets;
+				try
+				{
+					co_await listener.BindServiceNameAsync(winrt::hstring{});
+					co_return to_integer(listener.Information().LocalPort());
 				}
 				catch (const winrt::hresult_error &er)
 				{

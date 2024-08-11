@@ -93,14 +93,33 @@ namespace crpc
 			{
 				listener = std::make_unique<sockets::win8::TcpSocketListener>();
 				if (config.address.empty())
-					co_await listener->bind(static_cast<int>(config.port));
+					return listener->bind(config.port);
 				else
-					co_await listener->bind(config.address, static_cast<int>(config.port));
+					return listener->bind(config.address, config.port);
 			}
+
+			corsl::future<int> create_server()
+			{
+				listener = std::make_unique<sockets::win8::TcpSocketListener>();
+				return listener->bind();
+			}
+
+#if defined(WINRT_Windows_Networking_Connectivity_H)
+			corsl::future<> create_server(const winrt::Windows::Networking::Connectivity::NetworkAdapter &address, uint16_t port)
+			{
+				listener = std::make_unique<sockets::win8::TcpSocketListener>();
+				return listener->bind(address, port);
+			}
+#endif
 
 			corsl::future<tcp_transport> wait_client(const corsl::cancellation_source &cancel)
 			{
 				co_return tcp_transport{ co_await listener->listen(cancel) };
+			}
+
+			int get_port() const noexcept
+			{
+				return listener->get_port();
 			}
 		};
 

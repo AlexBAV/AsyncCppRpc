@@ -59,9 +59,33 @@ namespace crpc
 		template<class T>
 		using safe_value_type_t = typename safe_value_type<T>::type;
 
-		class Writer
+		struct empty_serializer_state
+		{};
+
+		template<class State>
+		struct state_holder
+		{
+			using StoredState = State;
+			static constexpr const bool has_state = true;
+			State &state;
+
+			state_holder(State &state) noexcept :
+				state{ state }
+			{}
+		};
+
+		template<>
+		struct state_holder<empty_serializer_state>
+		{
+			using StoredState = empty_serializer_state;
+			static constexpr const bool has_state = false;
+		};
+
+		template<class State = empty_serializer_state>
+		class Writer : public state_holder<State>
 		{
 			using Container = std::vector<std::byte>;
+			using state_holder = state_holder<State>;
 
 			Container storage;
 
@@ -83,6 +107,9 @@ namespace crpc
 				for (; begin != end; ++begin)
 					write(*begin);
 			}
+
+			// serialization of std::error_code is prohibited because it is not portable
+			void write(const std::error_code &) = delete;
 
 			// vector
 			template<class T, class Alloc>
@@ -202,10 +229,22 @@ namespace crpc
 			}
 
 		public:
-			Writer() = default;
-			Writer(std::vector<std::byte> &&storage) noexcept :
+			struct is_serializer_writer;
+
+			Writer() requires (!state_holder::has_state) = default;
+			Writer(std::vector<std::byte> &&storage) noexcept requires (!state_holder::has_state) :
 				storage{ std::move(storage) }
 			{}
+
+			Writer(State &state) noexcept requires state_holder::has_state : 
+				state_holder{ state }
+			{}
+
+			Writer(std::vector<std::byte> &&storage, State &state) noexcept requires state_holder::has_state :
+				storage{ std::move(storage) },
+				state_holder{ state }
+			{}
+
 
 			const Container &get() const &noexcept
 			{
@@ -223,22 +262,68 @@ namespace crpc
 				write(val);
 				return *this;
 			}
+
+			State &state() const noexcept requires state_holder::has_state
+			{
+				return state_holder::state;
+			}
 		};
 
+		// deduction guides
+		Writer()->Writer<>;
+		Writer(std::vector<std::byte> &&storage)->Writer<>;
+
+		template<class State>
+		Writer(State &state)->Writer<State>;
+
 		template<class...Args>
-		inline Writer create_writer(const Args &...args)
+		inline auto create_writer(const Args &...args)
 		{
 			Writer w;
 			(w << ... << args);
 			return w;
 		}
 
+		template<class State, class...Args>
+		inline auto create_writer_with_state(State &state, const Args &...args)
+		{
+			if constexpr (std::same_as<State, empty_serializer_state>)
+			{
+				Writer w;
+				(w << ... << args);
+				return w;
+			}
+			else
+			{
+				Writer w{ state };
+				(w << ... << args);
+				return w;
+			}
+		}
+
 		template<class...Args>
-		inline Writer create_writer_on(std::vector<std::byte> &&data, const Args &...args)
+		inline auto create_writer_on(std::vector<std::byte> &&data, const Args &...args)
 		{
 			Writer w{ std::move(data) };
 			(w << ... << args);
 			return w;
+		}
+
+		template<class State, class...Args>
+		inline Writer<> create_writer_on_with_state(std::vector<std::byte> &&data, State &state, const Args &...args)
+		{
+			if constexpr (std::same_as<State, empty_serializer_state>)
+			{
+				Writer w{ std::move(data) };
+				(w << ... << args);
+				return w;
+			}
+			else
+			{
+				Writer w{ std::move(data), state };
+				(w << ... << args);
+				return w;
+			}
 		}
 
 		// Reader
@@ -260,10 +345,12 @@ namespace crpc
 			serialize_read(r, v);
 		};
 
-		class Reader
+		template<class State = empty_serializer_state>
+		class Reader : public state_holder<State>
 		{
 			using span = std::span<const std::byte>;
 			using iterator = typename span::iterator;
+			using state_holder = state_holder<State>;
 
 			span range;
 			iterator it;
@@ -304,6 +391,9 @@ namespace crpc
 						return size;
 					});
 			}
+
+			// serialization of std::error_code is prohibited because it is not portable
+			void read(std::error_code &) = delete;
 
 			// vector
 			template<class T>
@@ -451,7 +541,22 @@ namespace crpc
 			}
 
 		public:
-			Reader(span range) noexcept :
+			struct is_serializer_reader;
+
+			Reader(span range) noexcept requires (!state_holder::has_state) :
+				range{ range },
+				it{ sr::begin(range) }
+			{
+			}
+
+			Reader(span range, empty_serializer_state &) noexcept requires (!state_holder::has_state) :
+				range{ range },
+				it{ sr::begin(range) }
+			{
+			}
+
+			Reader(span range, State &state) noexcept requires state_holder::has_state :
+				state_holder{ state },
 				range{ range },
 				it{ sr::begin(range) }
 			{
@@ -473,10 +578,57 @@ namespace crpc
 			{
 				return std::span{ it, range.end() };
 			}
+
+			State &state() const noexcept requires state_holder::has_state
+			{
+				return state_holder::state;
+			}
+
+			void read_bytes(std::span<std::byte> destination)
+			{
+				read_range(destination);
+			}
 		};
+
+		template<class State>
+		Reader(std::span<const std::byte> range, State &state)->Reader<State>;
+		Reader(std::span<const std::byte> range, empty_serializer_state &state)->Reader<>;
+		Reader(std::span<const std::byte> range)->Reader<>;
+
+		namespace concepts
+		{
+			template<class Writer>
+			concept writer = requires
+			{
+				typename Writer::is_serializer_writer;
+			};
+
+			template<class Reader>
+			concept reader = requires
+			{
+				typename Reader::is_serializer_reader;
+			};
+
+			template<class ReaderOrWriter>
+			concept reader_or_writer = reader<ReaderOrWriter> || writer<ReaderOrWriter>;
+
+			template<class ReaderOrWriter, class State>
+			concept has_state = std::same_as<State, typename ReaderOrWriter::StoredState>;
+
+			template<class ReaderOrWriter>
+			concept has_no_state = has_state<ReaderOrWriter, empty_serializer_state>;
+		}
 	}
 
 	using details::Writer;
 	using details::Reader;
 	using details::create_writer;
+	using details::create_writer_with_state;
+	using details::create_writer_on;
+	using details::create_writer_on_with_state;
+
+	using details::concepts::reader;
+	using details::concepts::writer;
+	using details::concepts::has_state;
+	using details::concepts::has_no_state;
 }

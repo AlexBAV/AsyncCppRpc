@@ -29,7 +29,13 @@ namespace crpc::sockets
 	{
 		virtual ~ITcpSocketListener() = default;
 		virtual corsl::future<void> bind(const std::wstring &host, int port) = 0;
+		virtual corsl::future<int> bind(const std::wstring &host) = 0;
+#if defined(WINRT_Windows_Networking_Connectivity_H)
+		virtual corsl::future<void> bind(const winrt::Windows::Networking::Connectivity::NetworkAdapter &adapter, int port) = 0;
+#endif
 		virtual corsl::future<void> bind(int port) = 0;
+		virtual corsl::future<int> bind() = 0;
 		virtual corsl::future<std::unique_ptr<ITcpSocket>> listen(const corsl::cancellation_source &csource) = 0;
+		virtual int get_port() const = 0;
 	};
 }
