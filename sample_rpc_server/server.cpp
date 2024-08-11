@@ -46,11 +46,11 @@ public:
 			}
 			});
 
-		connection.on_error([this]([[maybe_unused]] HRESULT error_code)
-			{
-				log("Client disconnected. Server instance deleted.\n"sv);
-				delete this;
-			});
+		connection.on_error([this]([[maybe_unused]] HRESULT error_code, [[maybe_unused]] crpc::captured_on captured_on)
+		{
+			log("Client disconnected. Server instance deleted.\n"sv);
+			delete this;
+		});
 
 		connection.start(std::move(transport));
 	}
@@ -105,17 +105,17 @@ int main()
 {
 	log("Server started.\n"sv);
 	SetConsoleCtrlHandler([](DWORD ev) -> BOOL
+	{
+		switch (ev)
 		{
-			switch (ev)
-			{
-			case CTRL_C_EVENT:
-			case CTRL_BREAK_EVENT:
-				global_cancel.cancel();
-				return true;
-			default:
-				return false;
-			}
-		}, true);
+		case CTRL_C_EVENT:
+		case CTRL_BREAK_EVENT:
+			global_cancel.cancel();
+			return true;
+		default:
+			return false;
+		}
+	}, true);
 
 	start_server().wait();
 	log("Server stopped.\n"sv);

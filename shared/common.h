@@ -23,12 +23,12 @@ struct telemetry_info
 // Define custom serialization for a type
 namespace std::chrono
 {
-	void serialize_write(Writer &w, const std::chrono::time_point<std::chrono::system_clock> &time)
+	void serialize_write(crpc::writer auto &w, const std::chrono::time_point<std::chrono::system_clock> &time)
 	{
 		w << std::chrono::system_clock::to_time_t(time);
 	}
 
-	void serialize_read(Reader &r, std::chrono::time_point<std::chrono::system_clock> &time)
+	void serialize_read(crpc::reader auto &r, std::chrono::time_point<std::chrono::system_clock> &time)
 	{
 		time_t value;
 		r >> value;
